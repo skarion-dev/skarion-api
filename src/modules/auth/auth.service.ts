@@ -13,25 +13,47 @@ export class AuthService {
     private userRepo: Repository<User>,
     @InjectRepository(Account)
     private accountRepo: Repository<Account>,
+    private jwtService: JwtService,
   ) {}
+
+  private buildUserResponse(user: User) {
+    const accessToken = this.jwtService.sign({
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+    });
+
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      image: user.image,
+      lastLogin: user.lastLogin,
+      accessToken,
+    };
+  }
 
   async signup(name: string, email: string, password: string) {
     const existing = await this.userRepo.findOne({ where: { email } });
     if (existing) throw new UnauthorizedException('Email already exists');
 
     const hashedPassword = await bcrypt.hash(password, 10);
+
     const user = this.userRepo.create({
       name,
       email,
       password: hashedPassword,
     });
+
     await this.userRepo.save(user);
 
-    return user;
+    return this.buildUserResponse(user);
   }
 
   async login(email: string, password: string) {
     const user = await this.userRepo.findOne({ where: { email } });
+
     if (!user || !user.password)
       throw new UnauthorizedException('Invalid credentials');
 
@@ -41,7 +63,7 @@ export class AuthService {
     user.lastLogin = new Date();
     await this.userRepo.save(user);
 
-    return user;
+    return this.buildUserResponse(user);
   }
 
   async oauthLogin(provider: string, providerAccountId: string, profile: any) {
@@ -51,9 +73,11 @@ export class AuthService {
     });
 
     let user;
+
     if (account) {
       user = account.user;
     } else {
+      // Try to match existing email
       user = profile.email
         ? await this.userRepo.findOne({ where: { email: profile.email } })
         : null;
@@ -74,12 +98,13 @@ export class AuthService {
         type: 'oauth',
         user,
       });
+
       await this.accountRepo.save(newAccount);
     }
 
     user.lastLogin = new Date();
     await this.userRepo.save(user);
 
-    return user;
+    return this.buildUserResponse(user);
   }
 }
