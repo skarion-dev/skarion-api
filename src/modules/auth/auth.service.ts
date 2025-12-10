@@ -1,0 +1,85 @@
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Repository } from 'typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
+import * as bcrypt from 'bcrypt';
+import { JwtService } from '@nestjs/jwt';
+import { User } from 'src/entities/user.entity';
+import { Account } from 'src/entities/account.entity';
+
+@Injectable()
+export class AuthService {
+  constructor(
+    @InjectRepository(User)
+    private userRepo: Repository<User>,
+    @InjectRepository(Account)
+    private accountRepo: Repository<Account>,
+  ) {}
+
+  async signup(name: string, email: string, password: string) {
+    const existing = await this.userRepo.findOne({ where: { email } });
+    if (existing) throw new UnauthorizedException('Email already exists');
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = this.userRepo.create({
+      name,
+      email,
+      password: hashedPassword,
+    });
+    await this.userRepo.save(user);
+
+    return user;
+  }
+
+  async login(email: string, password: string) {
+    const user = await this.userRepo.findOne({ where: { email } });
+    if (!user || !user.password)
+      throw new UnauthorizedException('Invalid credentials');
+
+    const isValid = await bcrypt.compare(password, user.password);
+    if (!isValid) throw new UnauthorizedException('Invalid credentials');
+
+    user.lastLogin = new Date();
+    await this.userRepo.save(user);
+
+    return user;
+  }
+
+  async oauthLogin(provider: string, providerAccountId: string, profile: any) {
+    let account = await this.accountRepo.findOne({
+      where: { provider, providerAccountId },
+      relations: ['user'],
+    });
+
+    let user;
+    if (account) {
+      user = account.user;
+    } else {
+      user = profile.email
+        ? await this.userRepo.findOne({ where: { email: profile.email } })
+        : null;
+
+      if (!user) {
+        user = this.userRepo.create({
+          name: profile.name,
+          email: profile.email,
+          image: profile.image,
+          emailVerifiedAt: new Date(),
+        });
+        await this.userRepo.save(user);
+      }
+
+      const newAccount = this.accountRepo.create({
+        provider,
+        providerAccountId,
+        type: 'oauth',
+        user,
+      });
+      await this.accountRepo.save(newAccount);
+    }
+
+    user.lastLogin = new Date();
+    await this.userRepo.save(user);
+
+    return user;
+  }
+}
