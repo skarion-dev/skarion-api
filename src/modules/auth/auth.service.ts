@@ -34,7 +34,19 @@ export class AuthService {
     };
   }
 
-  async signup(name: string, email: string, password: string) {
+  async signup(
+    name: string,
+    email: string,
+    password: string,
+    confirmPassword: string,
+  ) {
+
+    if (!name || !email || !password || !confirmPassword)
+      throw new UnauthorizedException('Missing required fields');
+
+    if (password !== confirmPassword)
+      throw new UnauthorizedException('Passwords do not match');
+
     const existing = await this.userRepo.findOne({ where: { email } });
     if (existing) throw new UnauthorizedException('Email already exists');
 
