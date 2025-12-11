@@ -18,6 +18,8 @@ const envSchema = z.object({
   CLERK_PUBLISHABLE_KEY: z.string().optional(),
   CLERK_AUTHORIZED_PARTIES: z.string().optional(),
   AUTH_SECRET: z.string(),
+  STRIPE_KEY: z.string(),
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
   // JWT_TTL: z.coerce.number().default(86400),
   // REDIS_HOST: z.string().default("localhost"),
   // REDIS_PORT: z.coerce.number().default(6379),

@@ -40,7 +40,6 @@ export class AuthService {
     password: string,
     confirmPassword: string,
   ) {
-
     if (!name || !email || !password || !confirmPassword)
       throw new UnauthorizedException('Missing required fields');
 
@@ -79,7 +78,7 @@ export class AuthService {
   }
 
   async oauthLogin(provider: string, providerAccountId: string, profile: any) {
-    let account = await this.accountRepo.findOne({
+    const account = await this.accountRepo.findOne({
       where: { provider, providerAccountId },
       relations: ['user'],
     });
