@@ -5,6 +5,7 @@ import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { User } from 'src/entities/user.entity';
 import { Account } from 'src/entities/account.entity';
+import { SignupDto, LoginDto, OauthLoginDto } from './dtos';
 
 @Injectable()
 export class AuthService {
@@ -34,12 +35,9 @@ export class AuthService {
     };
   }
 
-  async signup(
-    name: string,
-    email: string,
-    password: string,
-    confirmPassword: string,
-  ) {
+  async signup(signupDto: SignupDto) {
+    const { username, name, email, password, confirmPassword } = signupDto;
+
     if (!name || !email || !password || !confirmPassword)
       throw new UnauthorizedException('Missing required fields');
 
@@ -52,6 +50,7 @@ export class AuthService {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = this.userRepo.create({
+      username,
       name,
       email,
       password: hashedPassword,
@@ -62,7 +61,8 @@ export class AuthService {
     return this.buildUserResponse(user);
   }
 
-  async login(email: string, password: string) {
+  async login(loginDto: LoginDto) {
+    const { email, password } = loginDto;
     const user = await this.userRepo.findOne({ where: { email } });
 
     if (!user || !user.password)
@@ -77,7 +77,8 @@ export class AuthService {
     return this.buildUserResponse(user);
   }
 
-  async oauthLogin(provider: string, providerAccountId: string, profile: any) {
+  async oauthLogin(oauthLoginDto: OauthLoginDto) {
+    const { provider, providerAccountId, profile } = oauthLoginDto;
     const account = await this.accountRepo.findOne({
       where: { provider, providerAccountId },
       relations: ['user'],
@@ -89,15 +90,15 @@ export class AuthService {
       user = account.user;
     } else {
       // Try to match existing email
-      user = profile.email
-        ? await this.userRepo.findOne({ where: { email: profile.email } })
+      user = profile['email']
+        ? await this.userRepo.findOne({ where: { email: profile['email'] } })
         : null;
 
       if (!user) {
         user = this.userRepo.create({
-          name: profile.name,
-          email: profile.email,
-          image: profile.image,
+          name: profile['name'],
+          email: profile['email'],
+          image: profile['image'],
           emailVerifiedAt: new Date(),
         });
         await this.userRepo.save(user);

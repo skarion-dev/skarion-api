@@ -6,6 +6,7 @@ import type Stripe from 'stripe';
 import { StripeEventService } from '../stripe-event/stripe-event.service';
 import { Purchase } from 'src/entities/purchase.entity';
 import { appConfig } from 'src/config/app-config';
+import { CreateCheckoutDto } from './dtos';
 
 const course = {
   id: 'course_001',
@@ -24,7 +25,8 @@ export class PaymentsService {
     private stripeEventService: StripeEventService,
   ) {}
 
-  async createCheckoutSession(email?: string) {
+  async createCheckoutSession(dto: CreateCheckoutDto) {
+    const { email } = dto;
     const session = await this.stripe.checkout.sessions.create({
       mode: 'payment',
       line_items: [
@@ -40,7 +42,8 @@ export class PaymentsService {
           quantity: 1,
         },
       ],
-      success_url: 'http://localhost:3000/success?session_id={CHECKOUT_SESSION_ID}',
+      success_url:
+        'http://localhost:3000/success?session_id={CHECKOUT_SESSION_ID}',
       cancel_url: 'http://localhost:3000/cancel',
       customer_email: email,
     });
