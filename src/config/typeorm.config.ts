@@ -2,6 +2,8 @@ import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { User } from '../entities/user.entity';
 import { appConfig } from 'src/config/app-config';
 import { Account } from 'src/entities/account.entity';
+import { StripeEvent } from 'src/entities/stripe-event.entity';
+import { Purchase } from 'src/entities/purchase.entity';
 
 export const ormConfig = (): TypeOrmModuleOptions => ({
   type: 'postgres',
@@ -10,7 +12,7 @@ export const ormConfig = (): TypeOrmModuleOptions => ({
   username: appConfig.env.DB_USER || 'postgres',
   password: appConfig.env.DB_PASSWORD || 'postgres',
   database: appConfig.env.DB_NAME || 'mydb',
-  entities: [User, Account],
+  entities: [User, Account, StripeEvent, Purchase],
   synchronize: true,
   migrationsRun: false,
   logging: true,

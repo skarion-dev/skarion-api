@@ -8,10 +8,13 @@ import { AuthController } from './auth.controller';
 import { appConfig } from 'src/config/app-config';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, Account]), JwtModule.register({
+  imports: [
+    TypeOrmModule.forFeature([User, Account]),
+    JwtModule.register({
       secret: appConfig.env.AUTH_SECRET,
       signOptions: { expiresIn: '1h' },
-    })],
+    }),
+  ],
   providers: [AuthService],
   controllers: [AuthController],
   exports: [AuthService],
