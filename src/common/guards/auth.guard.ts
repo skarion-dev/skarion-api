@@ -8,7 +8,7 @@ import { jwtVerify } from 'jose';
 import { appConfig } from 'src/config/app-config';
 
 @Injectable()
-export class AuthJsGuard implements CanActivate {
+export class AuthGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest();
     const authHeader = req.headers['authorization'];

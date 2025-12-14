@@ -3,15 +3,18 @@ import * as path from 'path';
 
 const name = process.argv[2];
 if (!name) {
-  console.error('❌ Please provide a migration name.\nUsage: npm run migration:generate MyMigration');
+  console.error(
+    '❌ Please provide a migration name.\nUsage: npm run migration:generate MyMigration',
+  );
   process.exit(1);
 }
 
 const migrationPath = path.join('src', 'database', 'migrations', name);
 const args = [
-  '-d', 'src/database/data-source.ts',
+  '-d',
+  'src/database/data-source.ts',
   'migration:generate',
-  migrationPath
+  migrationPath,
 ];
 
 console.log(`⚡ Generating migration: ${migrationPath}`);

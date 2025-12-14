@@ -7,7 +7,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  
+
   // patchNestjsSwagger();
 
   const config = new DocumentBuilder()
@@ -17,6 +17,14 @@ async function bootstrap() {
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
+
+  app.enableCors({
+    origin: '*',
+    credentials: true,
+    methods: '*',
+    preflightContinue: false,
+  });
+
   app.use('/webhooks/stripe', bodyParser.raw({ type: 'application/json' }));
   console.log('application started on port', process.env.PORT);
   await app.listen(process.env.PORT ?? 3000);
