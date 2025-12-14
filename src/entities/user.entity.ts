@@ -4,7 +4,10 @@ import { Account } from './account.entity';
 
 @Entity('users')
 export class User extends BaseEntity {
-  @Column({ length: 150 })
+  @Column({ unique: true, nullable: true })
+  username: string;
+
+  @Column({ nullable: true })
   name: string;
 
   @Column({ unique: true })
