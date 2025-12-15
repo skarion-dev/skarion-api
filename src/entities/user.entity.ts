@@ -1,6 +1,7 @@
 import { Entity, Column, OneToMany } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { Account } from './account.entity';
+import { Purchase } from './purchase.entity';
 
 @Entity('users')
 export class User extends BaseEntity {
@@ -33,6 +34,9 @@ export class User extends BaseEntity {
 
   @OneToMany(() => Account, (account) => account.user, { cascade: true })
   accounts: Account[];
+
+  @OneToMany(() => Purchase, (purchase) => purchase.user)
+  purchases: Purchase[];
 
   @Column({ nullable: true })
   lastLogin?: Date;

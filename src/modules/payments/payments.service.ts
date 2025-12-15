@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { StripeService } from '../stripe/stripe.service';
@@ -7,14 +11,7 @@ import { StripeEventService } from '../stripe-event/stripe-event.service';
 import { Purchase } from 'src/entities/purchase.entity';
 import { appConfig } from 'src/config/app-config';
 import { CreateCheckoutDto } from './dtos';
-
-const course = {
-  id: 'course_001',
-  title: 'Skarion Course',
-  description: 'Introductory course',
-  amount: 4999,
-  currency: 'usd',
-};
+import { CoursesService } from '../courses/courses.service';
 
 @Injectable()
 export class PaymentsService {
@@ -23,17 +20,22 @@ export class PaymentsService {
     @InjectRepository(Purchase)
     private purchaseRepo: Repository<Purchase>,
     private stripeEventService: StripeEventService,
+    private coursesService: CoursesService,
   ) {}
 
-  async createCheckoutSession(dto: CreateCheckoutDto) {
-    const { email } = dto;
+  async createCheckoutSession(dto: CreateCheckoutDto, userId?: string) {
+    const { email, courseId } = dto;
+
+    const course = await this.coursesService.findOne(courseId);
+    if (!course) throw new NotFoundException('Course not found');
+
     const session = await this.stripe.checkout.sessions.create({
       mode: 'payment',
       line_items: [
         {
           price_data: {
             currency: course.currency,
-            unit_amount: course.amount,
+            unit_amount: course.price,
             product_data: {
               name: course.title,
               description: course.description,
@@ -43,36 +45,48 @@ export class PaymentsService {
         },
       ],
       success_url:
-        'http://localhost:3000/success?session_id={CHECKOUT_SESSION_ID}',
-      cancel_url: 'http://localhost:3000/cancel',
+        appConfig.env.STRIPE_RETURN_URL +
+        '?session_id={CHECKOUT_SESSION_ID}&status=success',
+      cancel_url:
+        appConfig.env.STRIPE_RETURN_URL +
+        '?session_id={CHECKOUT_SESSION_ID}&status=cancel',
       customer_email: email,
+      metadata: {
+        courseId: course.id,
+        userId: userId || '',
+      },
     });
 
     const purchase = this.purchaseRepo.create({
       courseId: course.id,
-      courseTitle: course.title,
-      amount: course.amount,
+      amount: course.price,
       currency: course.currency,
       status: 'pending',
       stripeSessionId: session.id,
-      customerEmail: email,
+      customerEmail: email || session.customer_details?.email || undefined,
+      userId: userId,
     });
     await this.purchaseRepo.save(purchase);
 
     return { url: session.url, sessionId: session.id };
   }
 
-  getCourse() {
-    return course;
-  }
-
   async getPurchaseBySessionId(sessionId: string) {
     if (!sessionId) throw new BadRequestException('Missing sessionId');
     const purchase = await this.purchaseRepo.findOne({
       where: { stripeSessionId: sessionId },
+      relations: ['course', 'user'],
     });
     if (!purchase) throw new BadRequestException('Purchase not found');
     return purchase;
+  }
+
+  async getUserPurchases(userId: string) {
+    return this.purchaseRepo.find({
+      where: { userId },
+      relations: ['course'],
+      order: { createdAt: 'DESC' },
+    });
   }
 
   async handleWebhook(signature: string | undefined, rawBody: Buffer) {
@@ -90,7 +104,7 @@ export class PaymentsService {
 
     switch (event.type) {
       case 'checkout.session.completed': {
-        const session = event.data.object;
+        const session = event.data.object as Stripe.Checkout.Session;
         const pi = session.payment_intent as string | undefined;
         const purchase = await this.purchaseRepo.findOne({
           where: { stripeSessionId: session.id },
@@ -103,7 +117,7 @@ export class PaymentsService {
         break;
       }
       case 'payment_intent.payment_failed': {
-        const intent = event.data.object;
+        const intent = event.data.object as Stripe.PaymentIntent;
         const purchase = await this.purchaseRepo.findOne({
           where: { stripePaymentIntentId: intent.id },
         });
@@ -114,7 +128,7 @@ export class PaymentsService {
         break;
       }
       case 'payment_intent.succeeded': {
-        const intent = event.data.object;
+        const intent = event.data.object as Stripe.PaymentIntent;
         const purchase = await this.purchaseRepo.findOne({
           where: { stripePaymentIntentId: intent.id },
         });

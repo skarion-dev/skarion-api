@@ -4,6 +4,7 @@ import { appConfig } from 'src/config/app-config';
 import { Account } from 'src/entities/account.entity';
 import { StripeEvent } from 'src/entities/stripe-event.entity';
 import { Purchase } from 'src/entities/purchase.entity';
+import { Course } from 'src/entities/course.entity';
 
 export const ormConfig = (): TypeOrmModuleOptions => ({
   type: 'postgres',
@@ -12,7 +13,7 @@ export const ormConfig = (): TypeOrmModuleOptions => ({
   username: appConfig.env.DB_USER || 'postgres',
   password: appConfig.env.DB_PASSWORD || 'postgres',
   database: appConfig.env.DB_NAME || 'mydb',
-  entities: [User, Account, StripeEvent, Purchase],
+  entities: [User, Account, StripeEvent, Purchase, Course],
   synchronize: true,
   migrationsRun: false,
   logging: true,

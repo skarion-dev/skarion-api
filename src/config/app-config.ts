@@ -20,6 +20,10 @@ const envSchema = z.object({
   AUTH_SECRET: z.string(),
   STRIPE_KEY: z.string(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  STRIPE_RETURN_URL: z
+    .string()
+    .optional()
+    .default('http://localhost:3000/checkout/outside-plant-engineering'),
   // JWT_TTL: z.coerce.number().default(86400),
   // REDIS_HOST: z.string().default("localhost"),
   // REDIS_PORT: z.coerce.number().default(6379),
