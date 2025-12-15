@@ -10,6 +10,7 @@ import {
   PaymentsController,
   StripeWebhookController,
 } from './payments.controller';
+import { PaymentsCronsService } from './payment.crons';
 
 @Module({
   imports: [
@@ -18,7 +19,7 @@ import {
     StripeEventModule,
     CoursesModule,
   ],
-  providers: [PaymentsService],
+  providers: [PaymentsService, PaymentsCronsService],
   controllers: [PaymentsController, StripeWebhookController],
 })
 export class PaymentsModule {}

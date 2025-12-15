@@ -1,4 +1,11 @@
-import { Controller, Get, Post, Body, Param } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  NotFoundException,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { CoursesService } from './courses.service';
 import { CreateCourseDto, CourseResponse } from './dtos';
@@ -34,6 +41,31 @@ export class CoursesController {
     return this.coursesService.getMyCourses(user.id);
   }
 
+  @Get('my-courses/:courseId')
+  @RequireAuth()
+  @ApiOperation({ summary: 'Get a specific course if owned by the user' })
+  @ApiResponse({
+    status: 200,
+    description: 'Course details if user owns it',
+    type: CourseResponse,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Course not found or not owned by user',
+  })
+  async getMyCourse(
+    @CurrentUser() user: IAuthenticatedUser,
+    @Param('courseId') courseId: string,
+  ) {
+    const course = await this.coursesService.getUserCourse(user.id, courseId);
+
+    if (!course) {
+      throw new NotFoundException('Course not found or not owned by user');
+    }
+
+    return course;
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a course by ID' })
   @ApiResponse({
@@ -44,6 +76,18 @@ export class CoursesController {
   @ApiResponse({ status: 404, description: 'Course not found' })
   findOne(@Param('id') id: string) {
     return this.coursesService.findOne(id);
+  }
+
+  @Get('slug/:slug')
+  @ApiOperation({ summary: 'Get a course by slug' })
+  @ApiResponse({
+    status: 200,
+    description: 'The found course',
+    type: CourseResponse,
+  })
+  @ApiResponse({ status: 404, description: 'Course not found' })
+  findOneBySlug(@Param('slug') slug: string) {
+    return this.coursesService.findOneBySlug(slug);
   }
 
   @Post()
