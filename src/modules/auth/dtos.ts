@@ -1,5 +1,6 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+import { ApiProperty } from '@nestjs/swagger';
 
 export const signupSchema = z
   .object({
@@ -30,3 +31,26 @@ export const oauthLoginSchema = z.object({
 });
 
 export class OauthLoginDto extends createZodDto(oauthLoginSchema) {}
+
+export class AuthResponse {
+  @ApiProperty()
+  id: string;
+
+  @ApiProperty()
+  name: string;
+
+  @ApiProperty()
+  email: string;
+
+  @ApiProperty()
+  role: string;
+
+  @ApiProperty({ required: false })
+  image?: string;
+
+  @ApiProperty()
+  lastLogin: Date;
+
+  @ApiProperty()
+  accessToken: string;
+}
