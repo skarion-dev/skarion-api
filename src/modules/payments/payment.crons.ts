@@ -15,7 +15,7 @@ export class PaymentsCronsService {
     private purchaseRepo: Repository<Purchase>,
   ) {}
 
-//   @Cron(CronExpression.EVERY_5_MINUTES)
+    @Cron(CronExpression.EVERY_5_MINUTES)
   async cancelledPendingPayments() {
     const tenMinutesAgo = new Date();
     tenMinutesAgo.setMinutes(tenMinutesAgo.getMinutes() - 10);
@@ -28,7 +28,9 @@ export class PaymentsCronsService {
     });
 
     if (purchases.length > 0) {
-      console.log(`Cancelling ${purchases.length} pending purchases older than 10 minutes.`);
+      console.log(
+        `Cancelling ${purchases.length} pending purchases older than 10 minutes.`,
+      );
       for (const purchase of purchases) {
         purchase.status = 'failed';
         await this.purchaseRepo.save(purchase);
