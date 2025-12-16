@@ -10,6 +10,9 @@ export class Course extends BaseEntity {
   @Column({ type: 'text', nullable: true })
   description: string;
 
+  @Column({ type: 'text', nullable: true })
+  slug: string;
+
   @Column({ type: 'integer' })
   price: number;
 
@@ -18,6 +21,9 @@ export class Course extends BaseEntity {
 
   @Column({ nullable: true })
   imageUrl: string;
+
+  @Column({ nullable: true })
+  videoUrl: string;
 
   @OneToMany(() => Purchase, (purchase) => purchase.course)
   purchases: Purchase[];
