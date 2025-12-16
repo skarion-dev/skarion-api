@@ -23,7 +23,8 @@ export class PaymentsService {
     private coursesService: CoursesService,
   ) {}
 
-  async createCheckoutSession(dto: CreateCheckoutDto, userId?: string) {
+async createCheckoutSession(dto: CreateCheckoutDto, userId?: string) {
+  try {
     const { email, courseId } = dto;
 
     const course = await this.coursesService.findOne(courseId);
@@ -34,8 +35,8 @@ export class PaymentsService {
       line_items: [
         {
           price_data: {
-            currency: course.currency,
-            unit_amount: course.price,
+            currency: course.currency.toLowerCase(),
+            unit_amount: Math.round(course.price * 100),
             product_data: {
               name: course.title,
               description: course.description,
@@ -44,16 +45,12 @@ export class PaymentsService {
           quantity: 1,
         },
       ],
-      success_url:
-        appConfig.env.STRIPE_RETURN_URL +
-        '?session_id={CHECKOUT_SESSION_ID}&status=success',
-      cancel_url:
-        appConfig.env.STRIPE_RETURN_URL +
-        '?session_id={CHECKOUT_SESSION_ID}&status=cancel',
-      customer_email: email,
+      success_url: `${appConfig.env.STRIPE_RETURN_URL}?session_id={CHECKOUT_SESSION_ID}&status=success`,
+      cancel_url: `${appConfig.env.STRIPE_RETURN_URL}?session_id={CHECKOUT_SESSION_ID}&status=cancel`,
+      ...(email ? { customer_email: email } : {}),
       metadata: {
         courseId: course.id,
-        userId: userId || '',
+        userId: userId ?? '',
       },
     });
 
@@ -63,13 +60,19 @@ export class PaymentsService {
       currency: course.currency,
       status: 'pending',
       stripeSessionId: session.id,
-      customerEmail: email || session.customer_details?.email || undefined,
+      customerEmail: email,
       userId: userId,
     });
+
     await this.purchaseRepo.save(purchase);
 
     return { url: session.url, sessionId: session.id };
+  } catch (error) {
+    console.error('Stripe Checkout Error:', error);
+    throw error;
   }
+}
+
 
   async getPurchaseBySessionId(sessionId: string) {
     if (!sessionId) throw new BadRequestException('Missing sessionId');

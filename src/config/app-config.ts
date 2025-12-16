@@ -1,6 +1,6 @@
-import { z, ZodError } from 'zod';
-import { fromZodError } from 'zod-validation-error';
-import * as dotenv from 'dotenv';
+import { z, ZodError } from "zod";
+import { fromZodError } from "zod-validation-error";
+import * as dotenv from "dotenv";
 
 dotenv.config();
 
@@ -23,7 +23,7 @@ const envSchema = z.object({
   STRIPE_RETURN_URL: z
     .string()
     .optional()
-    .default('http://localhost:3000/checkout/outside-plant-engineering'),
+    .default('http://localhost:3000/course/outside-plant-engineering'),
   // JWT_TTL: z.coerce.number().default(86400),
   // REDIS_HOST: z.string().default("localhost"),
   // REDIS_PORT: z.coerce.number().default(6379),

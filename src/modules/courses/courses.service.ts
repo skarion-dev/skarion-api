@@ -50,12 +50,16 @@ export class CoursesService {
   }
 
   async getUserCourse(userId: string, courseId: string) {
-    const purchase = await this.purchaseRepo.findOne({
-      where: { userId, courseId },
-      relations: ['course'],
-    });
-
-    return purchase ? purchase.course : null;
+    try {
+      const purchase = await this.purchaseRepo.findOne({
+        where: { userId, courseId, status: 'paid' },
+        relations: ['course'],
+      });
+      return purchase ? purchase.course : null;
+    } catch (error) {
+      console.log(error);
+      return null;
+    }
   }
 
   private createSlug(title: string): string {
