@@ -3,20 +3,34 @@ import { AppModule } from './app.module';
 import 'dotenv/config';
 import * as bodyParser from 'body-parser';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-// import { patchNestjsSwagger } from 'nestjs-zod';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // patchNestjsSwagger();
-
   const config = new DocumentBuilder()
     .setTitle('Skarion API')
-    .setDescription('The Skarion API description')
+    .setDescription('API documentation')
     .setVersion('1.0')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'Authorization',
+        in: 'header',
+      },
+      'jwt',
+    )
     .build();
+
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document);
+  SwaggerModule.setup('api', app, document, {
+    swaggerOptions: {
+      persistAuthorization: true,
+      queryConfigEnabled: true,
+      docExpansion: 'none',
+    },
+  });
 
   app.enableCors({
     origin: '*',

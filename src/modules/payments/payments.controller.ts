@@ -57,6 +57,7 @@ export class PaymentsController {
 
   @Get('purchase/:sessionId')
   @ApiOperation({ summary: 'Get purchase details by session ID' })
+  @RequireAuth()
   @ApiResponse({
     status: 200,
     description: 'Purchase details retrieved',
