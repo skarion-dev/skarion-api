@@ -44,8 +44,11 @@ export class AuthService {
     if (password !== confirmPassword)
       throw new UnauthorizedException('Passwords do not match');
 
-    const existing = await this.userRepo.findOne({ where: { email } });
-    if (existing) throw new UnauthorizedException('Email already exists');
+    const existingEmail = await this.userRepo.findOne({ where: { email } });
+    if (existingEmail) throw new UnauthorizedException('Email already exists');
+
+    const existingUsername = await this.userRepo.findOne({ where: { username } });
+    if (existingUsername) throw new UnauthorizedException('Username already exists');
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
