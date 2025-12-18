@@ -8,6 +8,7 @@ import { Repository } from 'typeorm';
 import { StripeService } from '../stripe/stripe.service';
 import type Stripe from 'stripe';
 import { StripeEventService } from '../stripe-event/stripe-event.service';
+import { MailerService } from '../mailer/mailer.service';
 import { Purchase } from 'src/entities/purchase.entity';
 import { appConfig } from 'src/config/app-config';
 import { CreateCheckoutDto } from './dtos';
@@ -21,6 +22,7 @@ export class PaymentsService {
     private purchaseRepo: Repository<Purchase>,
     private stripeEventService: StripeEventService,
     private coursesService: CoursesService,
+    private mailerService: MailerService,
   ) {}
 
 async createCheckoutSession(dto: CreateCheckoutDto, userId?: string) {
@@ -116,6 +118,7 @@ async createCheckoutSession(dto: CreateCheckoutDto, userId?: string) {
           purchase.status = 'paid';
           purchase.stripePaymentIntentId = pi;
           await this.purchaseRepo.save(purchase);
+          await this.sendThankYouEmail(purchase);
         }
         break;
       }
@@ -138,6 +141,7 @@ async createCheckoutSession(dto: CreateCheckoutDto, userId?: string) {
         if (purchase) {
           purchase.status = 'paid';
           await this.purchaseRepo.save(purchase);
+          await this.sendThankYouEmail(purchase);
         }
         break;
       }
@@ -146,5 +150,16 @@ async createCheckoutSession(dto: CreateCheckoutDto, userId?: string) {
     }
 
     return { received: true };
+  }
+
+  private async sendThankYouEmail(purchase: Purchase) {
+    console.log('Sending thank you email to', purchase.customerEmail);
+    const course = await this.coursesService.findOne(purchase.courseId);
+    const recipient = purchase.customerEmail || undefined;
+    if (!recipient) return;
+    const subject = `Thank you for your purchase: ${course?.title ?? 'Course'}`;
+    const text = `Thank you for purchasing ${course?.title ?? 'the course'}. Your payment was successful.`;
+    const html = `<p>Thank you for purchasing <strong>${course?.title ?? 'the course'}</strong>. Your payment was successful.</p>`;
+    await this.mailerService.sendMail({ recipients: [recipient], subject, text, html });
   }
 }

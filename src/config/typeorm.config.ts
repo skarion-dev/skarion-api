@@ -20,13 +20,13 @@ export const ormConfig = (): TypeOrmModuleOptions => ({
   synchronize: appConfig.env.NODE_ENV !== 'production',
   logging: appConfig.env.NODE_ENV !== 'production',
 
-  ssl: {
-    rejectUnauthorized: false,
-  },
+  // ssl: {
+  //   rejectUnauthorized: false,
+  // },
 
-  extra: {
-    ssl: {
-      rejectUnauthorized: false,
-    },
-  },
+  // extra: {
+  //   ssl: {
+  //     rejectUnauthorized: false,
+  //   },
+  // },
 });

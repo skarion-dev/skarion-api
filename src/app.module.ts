@@ -8,6 +8,7 @@ import { StripeEventModule } from './modules/stripe-event/stripe-event.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { CoursesModule } from './modules/courses/courses.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { MailerModule } from './modules/mailer/mailer.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     PaymentsModule,
     CoursesModule,
     ScheduleModule.forRoot(),
+    MailerModule,
   ],
   controllers: [AppController],
   providers: [AppService],
