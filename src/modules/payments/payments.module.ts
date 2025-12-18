@@ -5,6 +5,7 @@ import { StripeModule } from '../stripe/stripe.module';
 import { StripeEventModule } from '../stripe-event/stripe-event.module';
 import { Purchase } from 'src/entities/purchase.entity';
 import { CoursesModule } from '../courses/courses.module';
+import { MailerModule } from '../mailer/mailer.module';
 import { PaymentsService } from './payments.service';
 import {
   PaymentsController,
@@ -18,6 +19,7 @@ import { PaymentsCronsService } from './payment.crons';
     StripeModule,
     StripeEventModule,
     CoursesModule,
+    MailerModule,
   ],
   providers: [PaymentsService, PaymentsCronsService],
   controllers: [PaymentsController, StripeWebhookController],
