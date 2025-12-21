@@ -109,7 +109,7 @@ export class TeamService {
     const firstName = name.split(' ')[0];
     const course = courseName || 'Outside Plant Engineering course';
 
-    const text = `Dear ${firstName},<br/><br/>Thank you for enrolling in our ${course}. We’re excited to welcome you to Skarion and are truly glad to have you join our learning world.<br/><br/>To support you throughout the program, we’ve created a dedicated Microsoft Teams group chat where you’ll receive guidance, updates, and direct support from our instructors and team.<br/><br/>Please join the group using this link: ${inviteLink}<br/><br/>If you have any questions or need assistance at any point, feel free to reach out. we’re here to help you succeed.<br/><br/>Once again, welcome aboard. We look forward to supporting you on your journey into ${course}.<br/><br/>Warm regards,<br/>Skarion`;
+    const html = `Dear ${firstName},<br/><br/>Thank you for enrolling in our ${course}. We're excited to welcome you to Skarion and are truly glad to have you join our learning world.<br/><br/>To support you throughout the program, we’ve created a dedicated Microsoft Teams group chat where you’ll receive guidance, updates, and direct support from our instructors and team.<br/><br/>Please join the group using this link: ${inviteLink}<br/><br/>If you have any questions or need assistance at any point, feel free to reach out. we’re here to help you succeed.<br/><br/>Once again, welcome aboard. We look forward to supporting you on your journey into ${course}.<br/><br/>Warm regards,<br/>Skarion`;
 
     // const html = `<p>Dear ${firstName},</p>
     //     <p>Thank you for enrolling in our <strong>${course}</strong>. We’re excited to welcome you to Skarion and are truly glad to have you join our learning world.</p>
@@ -123,8 +123,8 @@ export class TeamService {
     await this.mailerService.sendMail({
       recipients: [email],
       subject: `Welcome to Skarion - ${course}`,
-      text,
-    //   html,
+    //   text,
+      html,
       placeholders: {},
     });
   }
