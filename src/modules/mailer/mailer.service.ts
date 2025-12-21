@@ -19,8 +19,8 @@ export class MailerService {
       message: {
         subject,
         body: {
-          contentType: 'Text',
-          content: text || html,
+          contentType: html ? 'HTML' : 'Text',
+          content: html || text,
         },
         toRecipients: recipients.map((recipient) => ({
           emailAddress: { address: recipient },
