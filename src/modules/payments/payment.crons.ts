@@ -15,7 +15,7 @@ export class PaymentsCronsService {
     private purchaseRepo: Repository<Purchase>,
   ) {}
 
-    @Cron(CronExpression.EVERY_5_MINUTES)
+  @Cron(CronExpression.EVERY_5_MINUTES)
   async cancelledPendingPayments() {
     const tenMinutesAgo = new Date();
     tenMinutesAgo.setMinutes(tenMinutesAgo.getMinutes() - 10);

@@ -9,6 +9,7 @@ import { StripeService } from '../stripe/stripe.service';
 import type Stripe from 'stripe';
 import { StripeEventService } from '../stripe-event/stripe-event.service';
 import { MailerService } from '../mailer/mailer.service';
+import { TeamService } from '../team/team.service';
 import { Purchase } from 'src/entities/purchase.entity';
 import { appConfig } from 'src/config/app-config';
 import { CreateCheckoutDto } from './dtos';
@@ -20,61 +21,59 @@ export class PaymentsService {
     private stripe: StripeService,
     @InjectRepository(Purchase)
     private purchaseRepo: Repository<Purchase>,
-    private stripeEventService: StripeEventService,
     private coursesService: CoursesService,
-    private mailerService: MailerService,
+    private teamService: TeamService,
   ) {}
 
-async createCheckoutSession(dto: CreateCheckoutDto, userId?: string) {
-  try {
-    const { email, courseId } = dto;
+  async createCheckoutSession(dto: CreateCheckoutDto, userId?: string) {
+    try {
+      const { email, courseId } = dto;
 
-    const course = await this.coursesService.findOne(courseId);
-    if (!course) throw new NotFoundException('Course not found');
+      const course = await this.coursesService.findOne(courseId);
+      if (!course) throw new NotFoundException('Course not found');
 
-    const session = await this.stripe.checkout.sessions.create({
-      mode: 'payment',
-      line_items: [
-        {
-          price_data: {
-            currency: course.currency.toLowerCase(),
-            unit_amount: Math.round(course.price * 100),
-            product_data: {
-              name: course.title,
-              description: course.description,
+      const session = await this.stripe.checkout.sessions.create({
+        mode: 'payment',
+        line_items: [
+          {
+            price_data: {
+              currency: course.currency.toLowerCase(),
+              unit_amount: Math.round(course.price * 100),
+              product_data: {
+                name: course.title,
+                description: course.description,
+              },
             },
+            quantity: 1,
           },
-          quantity: 1,
+        ],
+        success_url: `${appConfig.env.STRIPE_RETURN_URL}?session_id={CHECKOUT_SESSION_ID}&status=success`,
+        cancel_url: `${appConfig.env.STRIPE_RETURN_URL}?session_id={CHECKOUT_SESSION_ID}&status=cancel`,
+        ...(email ? { customer_email: email } : {}),
+        metadata: {
+          courseId: course.id,
+          userId: userId ?? '',
         },
-      ],
-      success_url: `${appConfig.env.STRIPE_RETURN_URL}?session_id={CHECKOUT_SESSION_ID}&status=success`,
-      cancel_url: `${appConfig.env.STRIPE_RETURN_URL}?session_id={CHECKOUT_SESSION_ID}&status=cancel`,
-      ...(email ? { customer_email: email } : {}),
-      metadata: {
+      });
+
+      const purchase = this.purchaseRepo.create({
         courseId: course.id,
-        userId: userId ?? '',
-      },
-    });
+        amount: course.price,
+        currency: course.currency,
+        status: 'pending',
+        stripeSessionId: session.id,
+        customerEmail: email,
+        userId: userId,
+      });
 
-    const purchase = this.purchaseRepo.create({
-      courseId: course.id,
-      amount: course.price,
-      currency: course.currency,
-      status: 'pending',
-      stripeSessionId: session.id,
-      customerEmail: email,
-      userId: userId,
-    });
+      await this.purchaseRepo.save(purchase);
 
-    await this.purchaseRepo.save(purchase);
-
-    return { url: session.url, sessionId: session.id };
-  } catch (error) {
-    console.error('Stripe Checkout Error:', error);
-    throw error;
+      return { url: session.url, sessionId: session.id };
+    } catch (error) {
+      console.error('Stripe Checkout Error:', error);
+      throw error;
+    }
   }
-}
-
 
   async getPurchaseBySessionId(sessionId: string) {
     if (!sessionId) throw new BadRequestException('Missing sessionId');
@@ -113,12 +112,13 @@ async createCheckoutSession(dto: CreateCheckoutDto, userId?: string) {
         const pi = session.payment_intent as string | undefined;
         const purchase = await this.purchaseRepo.findOne({
           where: { stripeSessionId: session.id },
+          relations: ['user'],
         });
         if (purchase) {
           purchase.status = 'paid';
           purchase.stripePaymentIntentId = pi;
           await this.purchaseRepo.save(purchase);
-          await this.sendThankYouEmail(purchase);
+          await this.sendCourseInvite(purchase);
         }
         break;
       }
@@ -137,11 +137,12 @@ async createCheckoutSession(dto: CreateCheckoutDto, userId?: string) {
         const intent = event.data.object as Stripe.PaymentIntent;
         const purchase = await this.purchaseRepo.findOne({
           where: { stripePaymentIntentId: intent.id },
+          relations: ['user'],
         });
         if (purchase) {
           purchase.status = 'paid';
           await this.purchaseRepo.save(purchase);
-          await this.sendThankYouEmail(purchase);
+          await this.sendCourseInvite(purchase);
         }
         break;
       }
@@ -152,14 +153,22 @@ async createCheckoutSession(dto: CreateCheckoutDto, userId?: string) {
     return { received: true };
   }
 
-  private async sendThankYouEmail(purchase: Purchase) {
-    console.log('Sending thank you email to', purchase.customerEmail);
+  private async sendCourseInvite(purchase: Purchase) {
+    console.log('Sending course invite to', purchase.customerEmail);
     const course = await this.coursesService.findOne(purchase.courseId);
     const recipient = purchase.customerEmail || undefined;
     if (!recipient) return;
-    const subject = `Thank you for your purchase: ${course?.title ?? 'Course'}`;
-    const text = `Thank you for purchasing ${course?.title ?? 'the course'}. Your payment was successful.`;
-    const html = `<p>Thank you for purchasing <strong>${course?.title ?? 'the course'}</strong>. Your payment was successful.</p>`;
-    await this.mailerService.sendMail({ recipients: [recipient], subject, text, html });
+
+    let firstName = 'Student';
+    if (purchase.user && purchase.user.name) {
+      firstName = purchase.user.name.split(' ')[0];
+    }
+
+    await this.teamService.createGroupChat({
+      chatName: `Updates with ${firstName}`,
+      userIds: ["26903f4b-327d-4723-be22-b5d557cce1d4", "018cd6ea-0ae0-48aa-9883-ce4fd9a29614", "cc30fe13-53ec-4a73-80c7-f4e554501da8", "9faff169-5b2e-4305-970d-cee0b7da87bf"],
+      guests: [{ email: recipient, name: firstName }],
+      courseName: course?.title,
+    });
   }
 }

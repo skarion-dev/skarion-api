@@ -2,10 +2,9 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { StripeModule } from '../stripe/stripe.module';
-import { StripeEventModule } from '../stripe-event/stripe-event.module';
 import { Purchase } from 'src/entities/purchase.entity';
 import { CoursesModule } from '../courses/courses.module';
-import { MailerModule } from '../mailer/mailer.module';
+import { TeamModule } from '../team/team.module';
 import { PaymentsService } from './payments.service';
 import {
   PaymentsController,
@@ -17,9 +16,8 @@ import { PaymentsCronsService } from './payment.crons';
   imports: [
     TypeOrmModule.forFeature([Purchase]),
     StripeModule,
-    StripeEventModule,
     CoursesModule,
-    MailerModule,
+    TeamModule,
   ],
   providers: [PaymentsService, PaymentsCronsService],
   controllers: [PaymentsController, StripeWebhookController],
