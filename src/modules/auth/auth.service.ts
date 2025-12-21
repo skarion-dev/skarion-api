@@ -47,8 +47,11 @@ export class AuthService {
     const existingEmail = await this.userRepo.findOne({ where: { email } });
     if (existingEmail) throw new UnauthorizedException('Email already exists');
 
-    const existingUsername = await this.userRepo.findOne({ where: { username } });
-    if (existingUsername) throw new UnauthorizedException('Username already exists');
+    const existingUsername = await this.userRepo.findOne({
+      where: { username },
+    });
+    if (existingUsername)
+      throw new UnauthorizedException('Username already exists');
 
     const hashedPassword = await bcrypt.hash(password, 10);
 

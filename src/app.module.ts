@@ -9,6 +9,8 @@ import { PaymentsModule } from './modules/payments/payments.module';
 import { CoursesModule } from './modules/courses/courses.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { MailerModule } from './modules/mailer/mailer.module';
+import { TeamModule } from './modules/team/team.module';
+import { MicrosoftModule } from './modules/microsoft/microsoft.module';
 
 @Module({
   imports: [
@@ -20,6 +22,8 @@ import { MailerModule } from './modules/mailer/mailer.module';
     CoursesModule,
     ScheduleModule.forRoot(),
     MailerModule,
+    TeamModule,
+    MicrosoftModule,
   ],
   controllers: [AppController],
   providers: [AppService],

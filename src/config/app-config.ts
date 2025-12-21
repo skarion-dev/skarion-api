@@ -1,6 +1,6 @@
-import { z, ZodError } from "zod";
-import { fromZodError } from "zod-validation-error";
-import * as dotenv from "dotenv";
+import { z, ZodError } from 'zod';
+import { fromZodError } from 'zod-validation-error';
+import * as dotenv from 'dotenv';
 
 dotenv.config();
 
