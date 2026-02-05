@@ -18,4 +18,7 @@ export default new DataSource({
   subscribers: [],
   logging: true,
   synchronize: true,
+  ssl: {
+    rejectUnauthorized: false,
+  },
 });
