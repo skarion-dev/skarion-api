@@ -38,11 +38,19 @@ export class TeamService {
     if (createChatDto.guests?.length) {
       for (const guest of createChatDto.guests) {
         try {
-          const userId = await this.getOrCreateGuestUser(guest.email, accessToken);
-          
+          const userId = await this.getOrCreateGuestUser(
+            guest.email,
+            accessToken,
+          );
+
           await this.addMemberWithRetry(chatId, userId, accessToken);
 
-          await this.sendEmailInvite(guest.email, chatWebUrl, guest.name, createChatDto.courseName);
+          await this.sendEmailInvite(
+            guest.email,
+            chatWebUrl,
+            guest.name,
+            createChatDto.courseName,
+          );
         } catch (err) {
           console.error(`Final failure for guest ${guest.email}:`, err.message);
         }
@@ -52,7 +60,10 @@ export class TeamService {
     return { chatId, inviteLink: chatWebUrl };
   }
 
-  private async getOrCreateGuestUser(email: string, accessToken: string): Promise<string> {
+  private async getOrCreateGuestUser(
+    email: string,
+    accessToken: string,
+  ): Promise<string> {
     const searchRes = await axios.get(
       `${this.graphApiUrl}/users?$filter=mail eq '${email}' or userPrincipalName eq '${email}'`,
       { headers: { Authorization: `Bearer ${accessToken}` } },
@@ -75,7 +86,12 @@ export class TeamService {
     return inviteRes.data.invitedUser.id;
   }
 
-  private async addMemberWithRetry(chatId: string, userId: string, accessToken: string, attempt = 1) {
+  private async addMemberWithRetry(
+    chatId: string,
+    userId: string,
+    accessToken: string,
+    attempt = 1,
+  ) {
     try {
       await axios.post(
         `${this.graphApiUrl}/chats/${chatId}/members`,
@@ -88,13 +104,21 @@ export class TeamService {
       );
       console.log(`Successfully added user ${userId} on attempt ${attempt}`);
     } catch (error) {
-      const isRetryable = error.response?.status === 403 || error.response?.status === 404;
-      
+      const isRetryable =
+        error.response?.status === 403 || error.response?.status === 404;
+
       if (isRetryable && attempt < 10) {
-        const delay = attempt * 3000; 
-        console.warn(`Member sync pending (Attempt ${attempt}). Retrying in ${delay}ms...`);
+        const delay = attempt * 3000;
+        console.warn(
+          `Member sync pending (Attempt ${attempt}). Retrying in ${delay}ms...`,
+        );
         await sleep(delay);
-        return this.addMemberWithRetry(chatId, userId, accessToken, attempt + 1);
+        return this.addMemberWithRetry(
+          chatId,
+          userId,
+          accessToken,
+          attempt + 1,
+        );
       }
       throw error;
     }

@@ -108,7 +108,7 @@ export class PaymentsService {
 
     switch (event.type) {
       case 'checkout.session.completed': {
-        const session = event.data.object as Stripe.Checkout.Session;
+        const session = event.data.object;
         const pi = session.payment_intent as string | undefined;
         const purchase = await this.purchaseRepo.findOne({
           where: { stripeSessionId: session.id },
@@ -123,7 +123,7 @@ export class PaymentsService {
         break;
       }
       case 'payment_intent.payment_failed': {
-        const intent = event.data.object as Stripe.PaymentIntent;
+        const intent = event.data.object;
         const purchase = await this.purchaseRepo.findOne({
           where: { stripePaymentIntentId: intent.id },
         });
@@ -134,7 +134,7 @@ export class PaymentsService {
         break;
       }
       case 'payment_intent.succeeded': {
-        const intent = event.data.object as Stripe.PaymentIntent;
+        const intent = event.data.object;
         const purchase = await this.purchaseRepo.findOne({
           where: { stripePaymentIntentId: intent.id },
           relations: ['user'],
@@ -166,7 +166,12 @@ export class PaymentsService {
 
     await this.teamService.createGroupChat({
       chatName: `Updates with ${firstName}`,
-      userIds: ["26903f4b-327d-4723-be22-b5d557cce1d4", "018cd6ea-0ae0-48aa-9883-ce4fd9a29614", "cc30fe13-53ec-4a73-80c7-f4e554501da8", "9faff169-5b2e-4305-970d-cee0b7da87bf"],
+      userIds: [
+        '26903f4b-327d-4723-be22-b5d557cce1d4',
+        '018cd6ea-0ae0-48aa-9883-ce4fd9a29614',
+        'cc30fe13-53ec-4a73-80c7-f4e554501da8',
+        '9faff169-5b2e-4305-970d-cee0b7da87bf',
+      ],
       guests: [{ email: recipient, name: firstName }],
       courseName: course?.title,
     });
