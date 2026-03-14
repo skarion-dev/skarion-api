@@ -20,21 +20,20 @@ export class PaymentsCronsService {
     const tenMinutesAgo = new Date();
     tenMinutesAgo.setMinutes(tenMinutesAgo.getMinutes() - 10);
 
-    const purchases = await this.purchaseRepo.find({
-      where: {
+    const result = await this.purchaseRepo.update(
+      {
         status: 'pending',
         createdAt: LessThan(tenMinutesAgo),
       },
-    });
+      {
+        status: 'failed',
+      },
+    );
 
-    if (purchases.length > 0) {
+    if (result.affected && result.affected > 0) {
       console.log(
-        `Cancelling ${purchases.length} pending purchases older than 10 minutes.`,
+        `Cancelled ${result.affected} pending purchases older than 10 minutes.`,
       );
-      for (const purchase of purchases) {
-        purchase.status = 'failed';
-        await this.purchaseRepo.save(purchase);
-      }
     }
   }
 }
