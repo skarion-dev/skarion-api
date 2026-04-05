@@ -9,7 +9,12 @@ if (!name) {
   process.exit(1);
 }
 
-const migrationPath = path.join('src', 'database', 'migrations', name);
+const migrationPath = path.join(
+  'src',
+  'database',
+  'migrations',
+  name,
+);
 const args = [
   '-d',
   'src/database/data-source.ts',
