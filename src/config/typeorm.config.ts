@@ -4,7 +4,8 @@ import { Account } from 'src/entities/account.entity';
 import { StripeEvent } from 'src/entities/stripe-event.entity';
 import { Purchase } from 'src/entities/purchase.entity';
 import { Course } from 'src/entities/course.entity';
-import { Payment } from 'src/entities/payment.entity';
+import { Role } from 'src/entities/role.entity';
+import { Permission } from 'src/entities/permission.entity';
 import { appConfig } from 'src/config/app-config';
 
 export const ormConfig = (): TypeOrmModuleOptions => ({
@@ -16,12 +17,18 @@ export const ormConfig = (): TypeOrmModuleOptions => ({
   password: appConfig.env.DB_PASSWORD,
   database: appConfig.env.DB_NAME,
 
-  entities: [User, Account, StripeEvent, Purchase, Course, Payment],
+  entities: [User, Account, StripeEvent, Purchase, Course, Role, Permission],
 
   synchronize: appConfig.env.NODE_ENV !== 'production',
   logging: appConfig.env.NODE_ENV !== 'production',
 
-  ssl: {
-    rejectUnauthorized: false,
-  },
+  // ssl: {
+  //   rejectUnauthorized: false,
+  // },
+
+  // extra: {
+  //   ssl: {
+  //     rejectUnauthorized: false,
+  //   },
+  // },
 });
