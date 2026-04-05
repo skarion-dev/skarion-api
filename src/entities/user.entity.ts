@@ -1,7 +1,8 @@
-import { Entity, Column, OneToMany } from 'typeorm';
+import { Entity, Column, OneToMany, ManyToMany, JoinTable } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { Account } from './account.entity';
 import { Purchase } from './purchase.entity';
+import { Role } from './role.entity';
 
 @Entity('users')
 export class User extends BaseEntity {
@@ -29,8 +30,9 @@ export class User extends BaseEntity {
   @Column({ default: true })
   isActive: boolean;
 
-  @Column({ default: 'user' })
-  role: string;
+  @ManyToMany(() => Role, (role) => role.users, { cascade: true })
+  @JoinTable({ name: 'userroles' })
+  roles: Role[];
 
   @OneToMany(() => Account, (account) => account.user, { cascade: true })
   accounts: Account[];
