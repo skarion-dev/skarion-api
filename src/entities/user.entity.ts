@@ -24,6 +24,9 @@ export class User extends BaseEntity {
   @Column({ nullable: true, length: 500 })
   bio?: string;
 
+  @Column({ unique: true, nullable: true })
+  referralCode?: string;
+
   @Column({ type: 'timestamp', nullable: true })
   emailVerifiedAt?: Date;
 
