@@ -11,6 +11,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { MailerModule } from './modules/mailer/mailer.module';
 import { TeamModule } from './modules/team/team.module';
 import { MicrosoftModule } from './modules/microsoft/microsoft.module';
+import { UsersModule } from './modules/users/users.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { MicrosoftModule } from './modules/microsoft/microsoft.module';
     MailerModule,
     TeamModule,
     MicrosoftModule,
+    UsersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

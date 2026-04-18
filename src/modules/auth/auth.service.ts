@@ -46,6 +46,7 @@ export class AuthService {
       permissions,
       image: user.image,
       lastLogin: user.lastLogin,
+      referralCode: user.referralCode,
       accessToken,
     };
   }
