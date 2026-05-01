@@ -15,7 +15,7 @@ export class AppService {
     return currentUser;
   }
 
-  @Cron('*/14 * * * *')
+  @Cron('0 */10 * * * *')
   async keepAlive() {
     const backendUrl =
       process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3000}`;

@@ -1,7 +1,8 @@
-import { Controller, Post, Body, HttpCode } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, UseGuards, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
-import { SignupDto, LoginDto, OauthLoginDto, AuthResponse } from './dtos';
+import { SignupDto, LoginDto, OauthLoginDto, SetUsernameDto, AuthResponse } from './dtos';
+import { AuthGuard } from '../../common/guards/auth.guard';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -42,4 +43,13 @@ export class AuthController {
   async oauthLogin(@Body() oauthLoginDto: OauthLoginDto) {
     return this.authService.oauthLogin(oauthLoginDto);
   }
+
+  @Post('set-username')
+  @HttpCode(200)
+  @UseGuards(AuthGuard)
+  @ApiOperation({ summary: 'Set username for OAuth users who signed up without one' })
+  async setUsername(@Req() req: any, @Body() dto: SetUsernameDto) {
+    return this.authService.setUsername(req.user.sub, dto.username);
+  }
 }
+

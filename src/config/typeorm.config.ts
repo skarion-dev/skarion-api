@@ -7,6 +7,11 @@ import { Course } from 'src/entities/course.entity';
 import { Role } from 'src/entities/role.entity';
 import { Permission } from 'src/entities/permission.entity';
 import { appConfig } from 'src/config/app-config';
+import { FormResponse } from 'src/entities/form-response.entity';
+import { Candidate } from 'src/entities/candidate.entity';
+import { JobApplication } from 'src/entities/job-application.entity';
+import { Job } from '../entities/job.entity';
+import { CrawlerStatus } from 'src/entities/crawler-status.entity';
 
 export const ormConfig = (): TypeOrmModuleOptions => ({
   type: 'postgres',
@@ -17,7 +22,20 @@ export const ormConfig = (): TypeOrmModuleOptions => ({
   password: appConfig.env.DB_PASSWORD,
   database: appConfig.env.DB_NAME,
 
-  entities: [User, Account, StripeEvent, Purchase, Course, Role, Permission],
+  entities: [
+    User,
+    Account,
+    StripeEvent,
+    Purchase,
+    Course,
+    Role,
+    Permission,
+    FormResponse,
+    Candidate,
+    JobApplication,
+    Job,
+    CrawlerStatus,
+  ],
 
   synchronize: appConfig.env.NODE_ENV !== 'production',
   logging: appConfig.env.NODE_ENV !== 'production',

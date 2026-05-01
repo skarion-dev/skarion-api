@@ -24,7 +24,7 @@ export class AuthService {
   ) {}
 
 
-  private buildUserResponse(user: User) {
+  private buildUserResponse(user: User, needsUsername = false) {
     const permissions = user.roles
       ?.flatMap((r) => r.permissions?.map((p) => p.name) || [])
       .filter((value, index, self) => self.indexOf(value) === index) || [];
@@ -41,6 +41,7 @@ export class AuthService {
     return {
       id: user.id,
       name: user.name,
+      username: user.username,
       email: user.email,
       roles,
       permissions,
@@ -48,13 +49,14 @@ export class AuthService {
       lastLogin: user.lastLogin,
       referralCode: user.referralCode,
       accessToken,
+      needsUsername,
     };
   }
 
   async signup(signupDto: SignupDto) {
     const { username, name, email, password, confirmPassword } = signupDto;
 
-    if (!name || !email || !password || !confirmPassword)
+    if (!username || !name || !email || !password || !confirmPassword)
       throw new UnauthorizedException('Missing required fields');
 
     if (password !== confirmPassword)
@@ -120,21 +122,25 @@ export class AuthService {
       relations: ['user', 'user.roles', 'user.roles.permissions'],
     });
 
-    let user;
+    let user: User;
+    let needsUsername = false;
 
     if (account) {
       user = account.user;
+      if (!user.username) needsUsername = true;
     } else {
       // Try to match existing email
-      user = profile['email']
+      const foundUser = profile['email']
         ? await this.userRepo.findOne({ 
             where: { email: profile['email'] },
             relations: ['roles', 'roles.permissions']
           })
         : null;
+      user = foundUser as User;
 
       if (!user) {
         const userRole = await this.roleRepo.findOne({ where: { name: 'user' } });
+        // Create OAuth user WITHOUT a username — they must set one before accessing the app
         user = this.userRepo.create({
           name: profile['name'],
           email: profile['email'],
@@ -145,6 +151,10 @@ export class AuthService {
           user.roles = [userRole];
         }
         await this.userRepo.save(user);
+        needsUsername = true;
+      } else if (!user.username) {
+        // Existing user without a username — flag it
+        needsUsername = true;
       }
 
       const newAccount = this.accountRepo.create({
@@ -160,6 +170,31 @@ export class AuthService {
     user.lastLogin = new Date();
     await this.userRepo.save(user);
 
-    return this.buildUserResponse(user);
+    const savedUser = await this.userRepo.findOne({
+      where: { id: user.id },
+      relations: ['roles', 'roles.permissions'],
+    }) as User;
+
+    return this.buildUserResponse(savedUser, needsUsername);
+  }
+
+  async setUsername(userId: string, username: string) {
+    if (!username || username.length < 3)
+      throw new UnauthorizedException('Username must be at least 3 characters');
+
+    const existing = await this.userRepo.findOne({ where: { username } });
+    if (existing && existing.id !== userId)
+      throw new UnauthorizedException('Username already taken');
+
+    const user = await this.userRepo.findOne({
+      where: { id: userId },
+      relations: ['roles', 'roles.permissions'],
+    });
+    if (!user) throw new UnauthorizedException('User not found');
+
+    user.username = username;
+    await this.userRepo.save(user);
+
+    return this.buildUserResponse(user, false);
   }
 }

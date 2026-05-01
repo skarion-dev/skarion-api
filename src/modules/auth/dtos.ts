@@ -32,6 +32,12 @@ export const oauthLoginSchema = z.object({
 
 export class OauthLoginDto extends createZodDto(oauthLoginSchema) {}
 
+export const setUsernameSchema = z.object({
+  username: z.string().min(3, 'Username must be at least 3 characters').max(30).regex(/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores'),
+});
+
+export class SetUsernameDto extends createZodDto(setUsernameSchema) {}
+
 export class AuthResponse {
   @ApiProperty()
   id: string;
