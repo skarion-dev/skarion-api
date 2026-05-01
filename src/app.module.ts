@@ -13,6 +13,8 @@ import { TeamModule } from './modules/team/team.module';
 import { MicrosoftModule } from './modules/microsoft/microsoft.module';
 import { UsersModule } from './modules/users/users.module';
 import { FormsModule } from './modules/forms/forms.module';
+import { EtlModule } from './modules/etl/etl.module';
+import { JobsModule } from './modules/jobs/jobs.module';
 
 @Module({
   imports: [
@@ -28,6 +30,8 @@ import { FormsModule } from './modules/forms/forms.module';
     MicrosoftModule,
     UsersModule,
     FormsModule,
+    EtlModule,
+    JobsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

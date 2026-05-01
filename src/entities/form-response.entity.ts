@@ -18,8 +18,8 @@ export class FormResponse extends BaseEntity {
   @Column({ name: 'phone_number', nullable: true })
   phoneNumber: string;
 
-  @Column({ name: 'special_requests', nullable: true })
-  specialRequests: string;
+  @Column({ name: 'note', nullable: true })
+  note: string;
 
   @Column({ type: 'jsonb', nullable: true })
   rawPayload: Record<string, any>;

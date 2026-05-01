@@ -18,6 +18,7 @@ const envSchema = z.object({
   CLERK_PUBLISHABLE_KEY: z.string().optional(),
   CLERK_AUTHORIZED_PARTIES: z.string().optional(),
   AUTH_SECRET: z.string(),
+  CRAWLER_API_KEY: z.string().default('skarion-secret-api-key'),
   STRIPE_KEY: z.string(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_RETURN_URL: z

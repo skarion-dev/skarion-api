@@ -24,7 +24,7 @@ export class FormsService {
       email: payload.email || null,
       address: payload.address || null,
       phoneNumber: payload.phoneNumber || null,
-      specialRequests: payload.specialRequests || null,
+      note: payload.note || null,
       referralCode: payload.referralCode || null,
       rawPayload: payload,
     });
