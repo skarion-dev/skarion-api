@@ -23,6 +23,31 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
+  private normalizeUsernameBase(value: string) {
+    return value
+      .toLowerCase()
+      .replace(/[^a-z0-9_]/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '');
+  }
+
+  private async generateUniqueUsername(seed?: string) {
+    const baseSeed = this.normalizeUsernameBase(seed || 'user');
+    const base = (baseSeed.length >= 3 ? baseSeed : `user_${baseSeed}`).slice(0, 30);
+
+    for (let i = 0; i < 500; i++) {
+      const suffix = i === 0 ? '' : `_${i}`;
+      const maxBaseLength = 30 - suffix.length;
+      const trimmedBase = base.slice(0, Math.max(3, maxBaseLength));
+      const candidate = `${trimmedBase}${suffix}`;
+      const exists = await this.userRepo.findOne({ where: { username: candidate } });
+      if (!exists) return candidate;
+    }
+
+    // Very unlikely fallback
+    return `user_${Date.now().toString(36)}`.slice(0, 30);
+  }
+
 
   private buildUserResponse(user: User, needsUsername = false) {
     const permissions = user.roles
@@ -140,8 +165,12 @@ export class AuthService {
 
       if (!user) {
         const userRole = await this.roleRepo.findOne({ where: { name: 'user' } });
-        // Create OAuth user WITHOUT a username — they must set one before accessing the app
+        const generatedUsername = await this.generateUniqueUsername(
+          String(profile['name'] || profile['email'] || 'user'),
+        );
+        // Create OAuth user with a temporary username; frontend can still prompt for custom username.
         user = this.userRepo.create({
+          username: generatedUsername,
           name: profile['name'],
           email: profile['email'],
           image: profile['image'],
