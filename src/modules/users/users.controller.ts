@@ -1,10 +1,10 @@
-import { Controller, Get, Patch, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { UpdateUserAffiliateDto } from './dtos';
 import { RequirePermissions } from '../../common/decorator/require-permissions.decorator';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
-import { AuthGuard } from '../../common/guards/auth.guard'; // Assuming AuthGuard populates req.user
+import { AuthGuard } from '../../common/guards/auth.guard';
 
 @ApiTags('Users')
 @Controller('users')
@@ -28,5 +28,12 @@ export class UsersController {
     @Body() updateUserAffiliateDto: UpdateUserAffiliateDto,
   ) {
     return this.usersService.makeAffiliate(id, updateUserAffiliateDto.referralCode);
+  }
+
+  @Post(':id/assign-candidate')
+  @RequirePermissions('MANAGE_USERS')
+  @ApiOperation({ summary: 'Assign the candidate role to a user (creates linked Candidate record)' })
+  async assignCandidate(@Param('id') id: string) {
+    return this.usersService.assignCandidateRole(id);
   }
 }

@@ -19,4 +19,8 @@ export class CandidateService {
   async findAll() {
     return this.candidateRepo.find({ order: { createdAt: 'DESC' } });
   }
+
+  async findByUserId(userId: string): Promise<Candidate | null> {
+    return this.candidateRepo.findOne({ where: { userId } });
+  }
 }

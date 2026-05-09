@@ -127,4 +127,70 @@ export class JobApplicationService {
       byYear: byYear.map((r) => ({ year: r.year, count: parseInt(r.count, 10) })),
     };
   }
+
+  /** Returns all applications for a specific candidate ID (used by candidate dashboard). */
+  async findForCandidate(candidateId: string) {
+    return this.jobAppRepo.find({
+      where: { candidateId },
+      relations: ['candidate', 'appliedBy'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  /** Returns statistics scoped to a single candidate. */
+  async getStatsForCandidate(candidateId: string) {
+    const totalApplications = await this.jobAppRepo.count({ where: { candidateId } });
+
+    const statusRaw = await this.jobAppRepo
+      .createQueryBuilder('app')
+      .select('app.status', 'status')
+      .addSelect('COUNT(*)', 'count')
+      .where('app.candidateId = :candidateId', { candidateId })
+      .groupBy('app.status')
+      .getRawMany<{ status: string | null; count: string }>();
+
+    const byStatus: Record<string, number> = {};
+    for (const row of statusRaw) {
+      byStatus[row.status ?? 'Unknown'] = parseInt(row.count, 10);
+    }
+
+    const byDay = await this.jobAppRepo
+      .createQueryBuilder('app')
+      .select("TO_CHAR(app.applicationDate, 'YYYY-MM-DD')", 'date')
+      .addSelect('COUNT(*)', 'count')
+      .where('app.candidateId = :candidateId', { candidateId })
+      .andWhere("app.applicationDate >= NOW() - INTERVAL '30 days'")
+      .groupBy('date')
+      .orderBy('date', 'ASC')
+      .getRawMany<{ date: string; count: string }>();
+
+    const byMonth = await this.jobAppRepo
+      .createQueryBuilder('app')
+      .select("TO_CHAR(app.applicationDate, 'YYYY-MM')", 'month')
+      .addSelect('COUNT(*)', 'count')
+      .where('app.candidateId = :candidateId', { candidateId })
+      .andWhere("app.applicationDate >= NOW() - INTERVAL '12 months'")
+      .groupBy('month')
+      .orderBy('month', 'ASC')
+      .getRawMany<{ month: string; count: string }>();
+
+    const byYear = await this.jobAppRepo
+      .createQueryBuilder('app')
+      .select("TO_CHAR(app.applicationDate, 'YYYY')", 'year')
+      .addSelect('COUNT(*)', 'count')
+      .where('app.candidateId = :candidateId', { candidateId })
+      .andWhere('app.applicationDate IS NOT NULL')
+      .groupBy('year')
+      .orderBy('year', 'ASC')
+      .getRawMany<{ year: string; count: string }>();
+
+    return {
+      totalCandidates: 1,
+      totalApplications,
+      byStatus,
+      byDay: byDay.map((r) => ({ date: r.date, count: parseInt(r.count, 10) })),
+      byMonth: byMonth.map((r) => ({ month: r.month, count: parseInt(r.count, 10) })),
+      byYear: byYear.map((r) => ({ year: r.year, count: parseInt(r.count, 10) })),
+    };
+  }
 }
