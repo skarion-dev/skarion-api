@@ -37,8 +37,7 @@ export const ormConfig = (): TypeOrmModuleOptions => ({
     CrawlerStatus,
   ],
 
-  // synchronize: appConfig.env.NODE_ENV !== 'production',
-  synchronize: true,
+  synchronize: appConfig.env.NODE_ENV !== 'production',
   logging: appConfig.env.NODE_ENV !== 'production',
 
   ssl: appConfig.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
