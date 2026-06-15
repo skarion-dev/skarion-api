@@ -12,6 +12,8 @@ import { Candidate } from 'src/entities/candidate.entity';
 import { JobApplication } from 'src/entities/job-application.entity';
 import { Job } from '../entities/job.entity';
 import { CrawlerStatus } from 'src/entities/crawler-status.entity';
+import { ChatRoom } from 'src/entities/chat-room.entity';
+import { ChatMessage } from 'src/entities/chat-message.entity';
 
 export const ormConfig = (): TypeOrmModuleOptions => ({
   type: 'postgres',
@@ -35,6 +37,8 @@ export const ormConfig = (): TypeOrmModuleOptions => ({
     JobApplication,
     Job,
     CrawlerStatus,
+    ChatRoom,
+    ChatMessage,
   ],
 
   synchronize: appConfig.env.NODE_ENV !== 'production',

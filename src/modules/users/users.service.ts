@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../../entities/user.entity';
 import { Role } from '../../entities/role.entity';
 import { Candidate } from '../../entities/candidate.entity';
+import { ChatService } from '../chat/chat.service';
 
 @Injectable()
 export class UsersService {
@@ -14,6 +15,8 @@ export class UsersService {
     private readonly roleRepository: Repository<Role>,
     @InjectRepository(Candidate)
     private readonly candidateRepository: Repository<Candidate>,
+    @Inject(forwardRef(() => ChatService))
+    private readonly chatService: ChatService,
   ) {}
 
   async findAll() {
@@ -90,6 +93,38 @@ export class UsersService {
       await this.candidateRepository.save(candidate);
     }
 
+    // Create group chat room + SharePoint folder (non-blocking on failure)
+    this.chatService
+      .createRoomForCandidate(candidate.id, user.name || user.username)
+      .catch((err) => console.error('Chat room creation failed:', err?.message));
+
     return { message: 'User assigned candidate role successfully', user, candidate };
+  }
+
+  async assignCustomerSupportRole(userId: string) {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['roles'],
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Guard: already a customer support
+    if (user.roles.some((r) => r.name === 'customer_support')) {
+      throw new BadRequestException('User is already customer support');
+    }
+
+    const csRole = await this.roleRepository.findOne({ where: { name: 'customer_support' } });
+    if (!csRole) {
+      throw new NotFoundException('Customer support role not found. Please run migrations.');
+    }
+
+    // Attach the customer support role
+    user.roles.push(csRole);
+    await this.userRepository.save(user);
+
+    return { message: 'User assigned customer support role successfully', user };
   }
 }

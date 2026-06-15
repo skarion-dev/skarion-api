@@ -36,4 +36,11 @@ export class UsersController {
   async assignCandidate(@Param('id') id: string) {
     return this.usersService.assignCandidateRole(id);
   }
+
+  @Post(':id/assign-customer-support')
+  @RequirePermissions('MANAGE_USERS')
+  @ApiOperation({ summary: 'Assign the customer_support role to a user' })
+  async assignCustomerSupport(@Param('id') id: string) {
+    return this.usersService.assignCustomerSupportRole(id);
+  }
 }

@@ -15,6 +15,7 @@ import { UsersModule } from './modules/users/users.module';
 import { FormsModule } from './modules/forms/forms.module';
 import { EtlModule } from './modules/etl/etl.module';
 import { JobsModule } from './modules/jobs/jobs.module';
+import { ChatModule } from './modules/chat/chat.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { JobsModule } from './modules/jobs/jobs.module';
     FormsModule,
     EtlModule,
     JobsModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [AppService],
