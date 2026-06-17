@@ -14,6 +14,7 @@ import { Job } from '../entities/job.entity';
 import { CrawlerStatus } from 'src/entities/crawler-status.entity';
 import { ChatRoom } from 'src/entities/chat-room.entity';
 import { ChatMessage } from 'src/entities/chat-message.entity';
+import { Booking } from 'src/entities/booking.entity';
 
 export const ormConfig = (): TypeOrmModuleOptions => ({
   type: 'postgres',
@@ -39,12 +40,16 @@ export const ormConfig = (): TypeOrmModuleOptions => ({
     CrawlerStatus,
     ChatRoom,
     ChatMessage,
+    Booking,
   ],
 
   synchronize: appConfig.env.NODE_ENV !== 'production',
   logging: appConfig.env.NODE_ENV !== 'production',
 
-  ssl: appConfig.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  ssl:
+    appConfig.env.NODE_ENV === 'production'
+      ? { rejectUnauthorized: false }
+      : false,
 
   extra: {
     ...(appConfig.env.NODE_ENV === 'production' && {

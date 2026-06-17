@@ -11,6 +11,7 @@ import { FormResponse } from '../entities/form-response.entity';
 import { Candidate } from '../entities/candidate.entity';
 import { JobApplication } from '../entities/job-application.entity';
 import { CrawlerStatus } from '../entities/crawler-status.entity';
+import { Booking } from '../entities/booking.entity';
 
 export default new DataSource({
   type: 'postgres',
@@ -19,12 +20,28 @@ export default new DataSource({
   username: process.env.DB_USER || 'postgres',
   password: process.env.DB_PASSWORD || 'postgres',
   database: process.env.DB_NAME || 'mydb',
-  entities: [User, Account, StripeEvent, Purchase, Course, Role, Permission, FormResponse, Candidate, JobApplication, CrawlerStatus],
+  entities: [
+    User,
+    Account,
+    StripeEvent,
+    Purchase,
+    Course,
+    Role,
+    Permission,
+    FormResponse,
+    Candidate,
+    JobApplication,
+    CrawlerStatus,
+    Booking,
+  ],
   migrations: ['src/database/migrations/*.ts'],
   subscribers: [],
   logging: true,
   synchronize: true,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  ssl:
+    process.env.NODE_ENV === 'production'
+      ? { rejectUnauthorized: false }
+      : false,
   extra: {
     ...(process.env.NODE_ENV === 'production' && {
       ssl: {
