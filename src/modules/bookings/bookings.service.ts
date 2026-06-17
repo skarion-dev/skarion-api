@@ -254,9 +254,7 @@ export class BookingsService {
       const date = formatInTimeZone(dayDate, this.timezone, 'yyyy-MM-dd');
       const weekday = Number(formatInTimeZone(dayDate, this.timezone, 'i'));
 
-      if (weekday > 5) {
-        continue;
-      }
+
 
       for (const slotDefinition of bookingSlotDefinitions) {
         const startAt = fromZonedTime(
