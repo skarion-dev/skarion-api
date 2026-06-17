@@ -12,13 +12,26 @@ const optionalTrimmedString = (maxLength: number) =>
     return trimmed.length ? trimmed : undefined;
   }, z.string().max(maxLength).optional());
 
-const bookingSlotValues = ['09:00', '11:00', '14:00', '16:00'] as const;
+const bookingSlotValues = [
+  '10:00',
+  '11:00',
+  '12:00',
+  '13:00',
+  '14:00',
+  '21:00',
+  '22:00',
+  '23:00',
+] as const;
 
 export const bookingSlotDefinitions = [
-  { value: '09:00', label: '9:00 AM', hour: 9, minute: 0 },
+  { value: '10:00', label: '10:00 AM', hour: 10, minute: 0 },
   { value: '11:00', label: '11:00 AM', hour: 11, minute: 0 },
+  { value: '12:00', label: '12:00 PM', hour: 12, minute: 0 },
+  { value: '13:00', label: '1:00 PM', hour: 13, minute: 0 },
   { value: '14:00', label: '2:00 PM', hour: 14, minute: 0 },
-  { value: '16:00', label: '4:00 PM', hour: 16, minute: 0 },
+  { value: '21:00', label: '9:00 PM', hour: 21, minute: 0 },
+  { value: '22:00', label: '10:00 PM', hour: 22, minute: 0 },
+  { value: '23:00', label: '11:00 PM', hour: 23, minute: 0 },
 ] as const;
 
 export const createBookingSchema = z.object({

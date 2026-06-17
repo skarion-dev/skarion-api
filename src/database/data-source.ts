@@ -37,7 +37,7 @@ export default new DataSource({
   migrations: ['src/database/migrations/*.ts'],
   subscribers: [],
   logging: true,
-  synchronize: true,
+  synchronize: process.env.NODE_ENV !== 'production',
   ssl:
     process.env.NODE_ENV === 'production'
       ? { rejectUnauthorized: false }
