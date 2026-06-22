@@ -381,17 +381,17 @@ export class BookingsService {
       subject: 'Thanks for booking a call with Skarion',
       html: `
         <p>Hi ${booking.fullName},</p>
-        <p>Thanks for booking a call with Skarion. Your meeting is confirmed for <strong>${formattedStart}</strong>.</p>
-        <p>Your calendar file is attached so you can add the meeting to your calendar in one click.</p>
-        ${joinLink}
-        <p>If you need to share anything before the call, just reply to this email.</p>
-        <p>Best,<br />Skarion</p>
+        <p>Your session is confirmed with Skarion and scheduled at <strong>${formattedStart}</strong>.</p>
+        <p>A calendar invitation is attached for your convenience, allowing you to add the meeting to your calendar with a single click.</p>
+        <p>Here is the Link to join the link - ${joinLink}
+        <p>If you have any additional information or questions ahead of the meeting, just reply to this email, and we'll be happy to assist you.</p>
+        <p>Best Regards,<br />Skarion</p>
       `,
       text: `Hi ${booking.fullName},
 
 Thanks for booking a call with Skarion. Your meeting is confirmed for ${formattedStart}.
 
-Your calendar file is attached so you can add the meeting to your calendar.
+A calendar invitation is attached for your convenience, allowing you to add the meeting to your calendar.
 
 ${booking.meetingJoinUrl ? `Join the meeting: ${booking.meetingJoinUrl}\n\n` : ''}Best,
 Skarion`,
