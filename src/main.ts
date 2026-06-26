@@ -3,9 +3,16 @@ import { AppModule } from './app.module';
 import 'dotenv/config';
 import * as bodyParser from 'body-parser';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { join } from 'path';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Serve static files from public directory
+  app.useStaticAssets(join(process.cwd(), 'public'), {
+    prefix: '/public/',
+  });
 
   const config = new DocumentBuilder()
     .setTitle('Skarion API')

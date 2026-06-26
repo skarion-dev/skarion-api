@@ -2,6 +2,7 @@ import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import axios from 'axios';
 import { MailerService } from '../mailer/mailer.service';
 import { MicrosoftService } from '../microsoft/microsoft.service';
+import { buildTeamChatInviteEmail, buildTeamChatInviteText } from '../mailer/email-templates.service';
 import { CreateChatDto } from './dtos';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -130,27 +131,19 @@ export class TeamService {
     name: string,
     courseName?: string,
   ) {
-    const firstName = name.split(' ')[0];
     const course = courseName || 'Outside Plant Engineering course';
 
-    const text = `Dear ${firstName}, 
-Thank you for enrolling in our ${course} course. We’re excited to welcome you to Skarion and are truly glad to have you join our learning world. 
-To support you throughout the program, we’ve created a dedicated Microsoft Teams group chat where you’ll receive guidance, updates, and direct support from our instructors and team. 
-Please join the group using the link below: 
-Join the chat here: ${inviteLink} 
-If you have any questions or need assistance at any point, feel free to reach out. we’re here to help you succeed. 
-Once again, welcome aboard. We look forward to supporting you on your journey into ${course}. 
-Warm regards, 
-Skarion`;
+    const html = buildTeamChatInviteEmail({
+      name,
+      courseName: course,
+      inviteLink,
+    });
 
-    const html = `<p>Dear ${firstName},</p>
-<p>Thank you for enrolling in our ${course} course. We’re excited to welcome you to Skarion and are truly glad to have you join our learning world.</p>
-<p>To support you throughout the program, we’ve created a dedicated Microsoft Teams group chat where you’ll receive guidance, updates, and direct support from our instructors and team.</p>
-<p>Please join the group using the link below:</p>
-<p><a href="${inviteLink}">Join the chat here</a></p>
-<p>If you have any questions or need assistance at any point, feel free to reach out. we’re here to help you succeed.</p>
-<p>Once again, welcome aboard. We look forward to supporting you on your journey into ${course}.</p>
-<p>Warm regards,<br>Skarion</p>`;
+    const text = buildTeamChatInviteText({
+      name,
+      courseName: course,
+      inviteLink,
+    });
 
     await this.mailerService.sendMail({
       recipients: [email],
