@@ -6,6 +6,8 @@ import axios from 'axios';
 export class SharepointService {
   private readonly folderPath = '3.00 Employee Deliverables/By Rianul';
   private readonly candidateGroupsPath = 'Candidate Groups';
+  private readonly bookingResumesPath =
+    process.env.BOOKING_RESUMES_SP_FOLDER || 'Booking Resumes';
   private readonly siteName = 'Skarion';
   private readonly graphBase = 'https://graph.microsoft.com/v1.0';
 
@@ -132,6 +134,40 @@ export class SharepointService {
     } catch (error: any) {
       console.error('SharePoint chat upload error:', error?.response?.data ?? error.message);
       throw new HttpException('Failed to upload file to SharePoint', HttpStatus.BAD_GATEWAY);
+    }
+  }
+
+  /**
+   * Uploads a resume file from a public booking into the
+   * "Booking Resumes" folder on the Skarion SharePoint site.
+   */
+  async uploadBookingResume(
+    fileName: string,
+    fileBuffer: Buffer,
+  ): Promise<{ url: string; name: string }> {
+    const token = await this.msService.getAccessToken();
+    const siteId = await this.getSiteId(token);
+    const filePath = `${this.bookingResumesPath}/${fileName}`;
+    const uploadUrl = `${this.graphBase}/sites/${siteId}/drive/root:/${filePath}:/content`;
+
+    try {
+      const response = await axios.put(uploadUrl, fileBuffer, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/octet-stream',
+        },
+      });
+      const webUrl: string = response.data?.webUrl ?? '';
+      return { url: webUrl, name: fileName };
+    } catch (error: any) {
+      console.error(
+        'SharePoint booking resume upload error:',
+        error?.response?.data ?? error.message,
+      );
+      throw new HttpException(
+        'Failed to upload booking resume to SharePoint',
+        HttpStatus.BAD_GATEWAY,
+      );
     }
   }
 
