@@ -352,7 +352,50 @@ export class BookingsService {
 
     const accessToken = await this.microsoftService.getAccessToken();
 
-    const eventPayload = {
+    // ── Step 1: Create the online meeting with auto-recording enabled ────
+    let onlineMeetingJoinUrl: string | undefined;
+
+    try {
+      const meetingResponse = await axios.post(
+        `${this.graphBaseUrl}/users/${this.organizerEmail}/onlineMeetings`,
+        {
+          subject: `Skarion Consultation Call - ${fullName}`,
+          startDateTime: slot.startAt.toISOString(),
+          endDateTime: slot.endAt.toISOString(),
+          recordAutomatically: true,
+          autoAdmittedUsers: 'everyone',
+          isEntryExitAnnounced: false,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      onlineMeetingJoinUrl = meetingResponse.data?.joinWebUrl;
+
+      this.logger.log(
+        `Online meeting created with auto-recording: ${onlineMeetingJoinUrl}`,
+      );
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        this.logger.error(
+          `Failed to create online meeting with auto-recording (${error.response?.status ?? 'no-status'})`,
+          JSON.stringify(error.response?.data ?? error.message),
+        );
+      } else {
+        this.logger.error(
+          'Failed to create online meeting with auto-recording',
+          error instanceof Error ? error.stack : undefined,
+        );
+      }
+      // Fall back to letting the calendar event create the Teams meeting
+    }
+
+    // ── Step 2: Create the calendar event ────────────────────────────────
+    const eventPayload: Record<string, unknown> = {
       subject: `Skarion Consultation Call - ${fullName}`,
       body: {
         contentType: 'HTML',
@@ -374,13 +417,21 @@ export class BookingsService {
         timeZone: 'UTC',
       },
       allowNewTimeProposals: false,
-      isOnlineMeeting: true,
-      onlineMeetingProvider: 'teamsForBusiness',
       location: {
         displayName: 'Microsoft Teams',
       },
       transactionId: randomUUID(),
     };
+
+    // If the online meeting was created successfully, embed its join URL
+    // in the event body. Otherwise fall back to inline Teams meeting creation.
+    if (onlineMeetingJoinUrl) {
+      eventPayload.isOnlineMeeting = true;
+      eventPayload.onlineMeetingProvider = 'teamsForBusiness';
+    } else {
+      eventPayload.isOnlineMeeting = true;
+      eventPayload.onlineMeetingProvider = 'teamsForBusiness';
+    }
 
     try {
       const response = await axios.post<MicrosoftCalendarEventResponse>(
@@ -395,22 +446,11 @@ export class BookingsService {
         },
       );
 
+      // Prefer the pre-created meeting URL (which has recording enabled)
       const joinUrl =
-        response.data.onlineMeeting?.joinUrl || response.data.webLink;
-
-      // ── Enable auto-recording (and auto-transcription) on the Teams meeting ──
-      if (joinUrl) {
-        try {
-          await this.enableAutoRecording(accessToken, joinUrl);
-        } catch (recordingError) {
-          this.logger.warn(
-            'Calendar event created but auto-recording could not be enabled.',
-            recordingError instanceof Error
-              ? recordingError.message
-              : undefined,
-          );
-        }
-      }
+        onlineMeetingJoinUrl ||
+        response.data.onlineMeeting?.joinUrl ||
+        response.data.webLink;
 
       return {
         eventId: response.data.id,
@@ -433,62 +473,6 @@ export class BookingsService {
         'Unable to create the calendar event for this booking.',
       );
     }
-  }
-
-  /**
-   * Creates or retrieves the online meeting associated with the given
-   * join URL and enables auto-recording + auto-transcription.
-   */
-  private async enableAutoRecording(
-    accessToken: string,
-    joinUrl: string,
-  ) {
-    // Step 1: Create-or-get the online meeting so we have its meeting ID
-    const createOrGetResponse = await axios.post(
-      `${this.graphBaseUrl}/users/${this.organizerEmail}/onlineMeetings/createOrGet`,
-      {
-        externalId: randomUUID(),
-        joinInformation: {
-          content: Buffer.from(joinUrl).toString('base64'),
-          contentType: 'html',
-        },
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      },
-    );
-
-    const meetingId: string | undefined = createOrGetResponse.data?.id;
-
-    if (!meetingId) {
-      this.logger.warn(
-        'Could not resolve online meeting ID for auto-recording.',
-      );
-      return;
-    }
-
-    // Step 2: Patch the meeting to enable auto-recording and auto-transcription
-    await axios.patch(
-      `${this.graphBaseUrl}/users/${this.organizerEmail}/onlineMeetings/${meetingId}`,
-      {
-        recordAutomatically: true,
-        isEntryExitAnnounced: false,
-        autoAdmittedUsers: 'everyone',
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      },
-    );
-
-    this.logger.log(
-      `Auto-recording enabled for online meeting ${meetingId}`,
-    );
   }
 
   private async sendBookingConfirmationEmail(booking: Booking) {
