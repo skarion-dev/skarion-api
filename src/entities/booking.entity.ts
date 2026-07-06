@@ -49,6 +49,9 @@ export class Booking extends BaseEntity {
   @Column({ name: 'meeting_join_url', nullable: true })
   meetingJoinUrl?: string;
 
+  @Column({ name: 'resume_url', nullable: true })
+  resumeUrl?: string;
+
   @Column({ name: 'reminder_scheduled', default: false })
   reminderScheduled: boolean;
 

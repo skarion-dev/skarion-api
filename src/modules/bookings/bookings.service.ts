@@ -14,12 +14,16 @@ import { Booking } from 'src/entities/booking.entity';
 import { MailerService } from '../mailer/mailer.service';
 import { MicrosoftService } from '../microsoft/microsoft.service';
 import { buildMeetingConfirmationEmail, buildMeetingConfirmationText, buildBookingReminderEmail, buildBookingReminderText, buildInternalBookingNotificationEmail, buildInternalBookingNotificationText } from '../mailer/email-templates.service';
+import { SharepointService } from '../etl/sharepoint.service';
 import {
   bookingSlotDefinitions,
+  createBookingSchema,
   type BookingAvailabilityResponse,
   type BookingResponse,
-  CreateBookingDto,
 } from './dtos';
+import { z } from 'zod';
+
+type CreateBookingData = z.infer<typeof createBookingSchema>;
 
 type SlotResult = {
   date: string;
@@ -69,7 +73,8 @@ export class BookingsService {
     private readonly bookingsRepository: Repository<Booking>,
     private readonly mailerService: MailerService,
     private readonly microsoftService: MicrosoftService,
-  ) { }
+    private readonly sharepointService: SharepointService,
+  ) {}
 
   async getAvailability(requestedTimezone?: string): Promise<BookingAvailabilityResponse> {
     const tz = requestedTimezone || this.timezone;
@@ -116,7 +121,10 @@ export class BookingsService {
     };
   }
 
-  async createBooking(data: CreateBookingDto): Promise<BookingResponse> {
+  async createBooking(
+    data: CreateBookingData,
+    resumeFile?: Express.Multer.File,
+  ): Promise<BookingResponse> {
     const tz = data.timezone || this.timezone;
     const availability = await this.buildAvailability();
     const matchedSlot = availability.find((slot) => {
@@ -139,6 +147,41 @@ export class BookingsService {
     const reminderScheduled =
       matchedSlot.startAt.getTime() - Date.now() > 60 * 60 * 1000;
 
+    // ── Upload resume to SharePoint ─────────────────────────────────────────
+    let resumeUrl: string | undefined;
+    let resumeBuffer: Buffer | undefined;
+    let resumeOriginalName: string | undefined;
+    let resumeContentType: string | undefined;
+
+    if (resumeFile) {
+      resumeBuffer = resumeFile.buffer;
+      resumeOriginalName = resumeFile.originalname;
+      resumeContentType = resumeFile.mimetype;
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const safeName = fullName.replace(/[^a-zA-Z0-9 ]/g, '').trim().replace(/\s+/g, '_');
+      const ext = resumeOriginalName.substring(
+        resumeOriginalName.lastIndexOf('.'),
+      );
+      const uploadFileName = `${safeName}_${timestamp}${ext}`;
+
+      try {
+        const result = await this.sharepointService.uploadBookingResume(
+          uploadFileName,
+          resumeBuffer,
+        );
+        resumeUrl = result.url;
+      } catch (error) {
+        this.logger.error(
+          'Failed to upload booking resume to SharePoint',
+          error instanceof Error ? error.stack : undefined,
+        );
+        throw new InternalServerErrorException(
+          'Unable to upload your resume. Please try again.',
+        );
+      }
+    }
+
     const booking = this.bookingsRepository.create({
       fullName,
       email,
@@ -152,6 +195,7 @@ export class BookingsService {
       slotEndAt: matchedSlot.endAt,
       timezone: tz,
       reminderScheduled,
+      resumeUrl,
     });
 
     try {
@@ -195,7 +239,11 @@ export class BookingsService {
     }
 
     try {
-      await this.sendInternalBookingNotification(booking);
+      await this.sendInternalBookingNotification(booking, {
+        buffer: resumeBuffer,
+        originalName: resumeOriginalName,
+        contentType: resumeContentType,
+      });
     } catch {
       this.logger.warn(
         `Booking ${booking.id} was created but the internal booking notification email could not be sent.`,
@@ -348,9 +396,26 @@ export class BookingsService {
         },
       );
 
+      const joinUrl =
+        response.data.onlineMeeting?.joinUrl || response.data.webLink;
+
+      // ── Enable auto-recording (and auto-transcription) on the Teams meeting ──
+      if (joinUrl) {
+        try {
+          await this.enableAutoRecording(accessToken, joinUrl);
+        } catch (recordingError) {
+          this.logger.warn(
+            'Calendar event created but auto-recording could not be enabled.',
+            recordingError instanceof Error
+              ? recordingError.message
+              : undefined,
+          );
+        }
+      }
+
       return {
         eventId: response.data.id,
-        joinUrl: response.data.onlineMeeting?.joinUrl || response.data.webLink,
+        joinUrl,
       };
     } catch (error) {
       if (axios.isAxiosError(error)) {
@@ -369,6 +434,62 @@ export class BookingsService {
         'Unable to create the calendar event for this booking.',
       );
     }
+  }
+
+  /**
+   * Creates or retrieves the online meeting associated with the given
+   * join URL and enables auto-recording + auto-transcription.
+   */
+  private async enableAutoRecording(
+    accessToken: string,
+    joinUrl: string,
+  ) {
+    // Step 1: Create-or-get the online meeting so we have its meeting ID
+    const createOrGetResponse = await axios.post(
+      `${this.graphBaseUrl}/users/${this.organizerEmail}/onlineMeetings/createOrGet`,
+      {
+        externalId: randomUUID(),
+        joinInformation: {
+          content: Buffer.from(joinUrl).toString('base64'),
+          contentType: 'html',
+        },
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      },
+    );
+
+    const meetingId: string | undefined = createOrGetResponse.data?.id;
+
+    if (!meetingId) {
+      this.logger.warn(
+        'Could not resolve online meeting ID for auto-recording.',
+      );
+      return;
+    }
+
+    // Step 2: Patch the meeting to enable auto-recording and auto-transcription
+    await axios.patch(
+      `${this.graphBaseUrl}/users/${this.organizerEmail}/onlineMeetings/${meetingId}`,
+      {
+        recordAutomatically: true,
+        isEntryExitAnnounced: false,
+        autoAdmittedUsers: 'everyone',
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      },
+    );
+
+    this.logger.log(
+      `Auto-recording enabled for online meeting ${meetingId}`,
+    );
   }
 
   private async sendBookingConfirmationEmail(booking: Booking) {
@@ -404,7 +525,14 @@ export class BookingsService {
     });
   }
 
-  private async sendInternalBookingNotification(booking: Booking) {
+  private async sendInternalBookingNotification(
+    booking: Booking,
+    resume?: {
+      buffer?: Buffer;
+      originalName?: string;
+      contentType?: string;
+    },
+  ) {
     if (!this.internalNotificationRecipients.length) {
       return;
     }
@@ -430,12 +558,50 @@ export class BookingsService {
       note: booking.note,
       joinLink: booking.meetingJoinUrl,
     });
+    const resumeHtml = booking.resumeUrl
+      ? `<p><strong>Resume:</strong> <a href="${booking.resumeUrl}">View on SharePoint</a></p>`
+      : '';
+
+    const resumeText = booking.resumeUrl
+      ? `Resume: ${booking.resumeUrl}\n`
+      : '';
+
+    const attachments: Array<{
+      filename: string;
+      contentType: string;
+      contentBase64: string;
+    }> = [];
+
+    if (resume?.buffer && resume.originalName) {
+      attachments.push({
+        filename: resume.originalName,
+        contentType: resume.contentType || 'application/octet-stream',
+        contentBase64: resume.buffer.toString('base64'),
+      });
+    }
 
     await this.mailerService.sendMail({
       recipients: this.internalNotificationRecipients,
       subject: `New booking: ${booking.fullName} on ${booking.slotDate}`,
-      html,
-      text,
+      html: `
+        <p>A new Skarion booking has been created.</p>
+        <p><strong>Name:</strong> ${booking.fullName}</p>
+        <p><strong>Email:</strong> ${booking.email}</p>
+        <p><strong>Phone:</strong> ${booking.phone}</p>
+        <p><strong>Meeting time:</strong> ${this.formatBookingDate(booking.slotStartAt)}</p>
+        ${booking.address ? `<p><strong>Address:</strong> ${booking.address}</p>` : ''}
+        ${booking.note ? `<p><strong>Note:</strong> ${booking.note}</p>` : ''}
+        ${resumeHtml}
+        ${booking.meetingJoinUrl ? `<p><a href="${booking.meetingJoinUrl}">Join the meeting</a></p>` : ''}
+      `,
+      text: `A new Skarion booking has been created.
+
+Name: ${booking.fullName}
+Email: ${booking.email}
+Phone: ${booking.phone}
+Meeting time: ${this.formatBookingDate(booking.slotStartAt)}
+${booking.address ? `Address: ${booking.address}\n` : ''}${booking.note ? `Note: ${booking.note}\n` : ''}${resumeText}${booking.meetingJoinUrl ? `Join the meeting: ${booking.meetingJoinUrl}\n` : ''}`,
+      attachments,
     });
   }
 
