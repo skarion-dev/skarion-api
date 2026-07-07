@@ -420,21 +420,21 @@ export class BookingsService {
       location: {
         displayName: 'Microsoft Teams',
       },
-      attendees: [
-        {
-          emailAddress: {
-            address: email,
-            name: fullName,
-          },
-          type: 'required',
+      attendees: Array.from(
+        new Set(
+          [
+            email,
+            this.senderEmail,
+            ...this.internalNotificationRecipients,
+          ].filter(Boolean),
+        ),
+      ).map((addr) => ({
+        emailAddress: {
+          address: addr,
+          ...(addr === email ? { name: fullName } : {}),
         },
-        ...this.internalNotificationRecipients.map((recipient) => ({
-          emailAddress: {
-            address: recipient,
-          },
-          type: 'required',
-        })),
-      ],
+        type: 'required',
+      })),
       transactionId: randomUUID(),
     };
 
