@@ -420,6 +420,21 @@ export class BookingsService {
       location: {
         displayName: 'Microsoft Teams',
       },
+      attendees: [
+        {
+          emailAddress: {
+            address: email,
+            name: fullName,
+          },
+          type: 'required',
+        },
+        ...this.internalNotificationRecipients.map((recipient) => ({
+          emailAddress: {
+            address: recipient,
+          },
+          type: 'required',
+        })),
+      ],
       transactionId: randomUUID(),
     };
 
