@@ -92,7 +92,7 @@ function buildBaseEmail({
                       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                         <tr>
                           <td style="vertical-align:middle;">
-                            <img src="${safeLogoUrl}" width="45" alt="Skarion" style="display:block; border:0; outline:none; text-decoration:none; max-width:45px; height:auto;" />
+                            <img src="https://res.cloudinary.com/ddwpvcmtl/image/upload/v1782752449/logo_wcgapl.svg" width="45" alt="Skarion" style="display:block; border:0; outline:none; text-decoration:none; max-width:45px; height:auto;" />
                           </td>
 
                         </tr>
@@ -107,7 +107,7 @@ function buildBaseEmail({
             ${safeHeroImageUrl ? `
             <tr>
               <td class="content-padding" style="padding:0 40px 0px 40px;">     
-                <img src="${safeHeroImageUrl}" width="520" height="180" alt="Skarion" class="hero-image" style="display:block; width:520px; max-width:100%; height:180px; object-fit:cover; border:0; border-radius:18px 18px 0 0; outline:none; text-decoration:none;" />
+                <img src="https://res.cloudinary.com/ddwpvcmtl/image/upload/v1782751452/image_gb9y0v.jpg" width="520" height="180" alt="Skarion" class="hero-image" style="display:block; width:520px; max-width:100%; height:180px; object-fit:cover; border:0; border-radius:18px 18px 0 0; outline:none; text-decoration:none;" />
 
               </td>
             </tr>
