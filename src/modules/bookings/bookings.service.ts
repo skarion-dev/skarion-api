@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   InternalServerErrorException,
@@ -14,6 +15,14 @@ import { Booking } from 'src/entities/booking.entity';
 import { MailerService } from '../mailer/mailer.service';
 import { MicrosoftService } from '../microsoft/microsoft.service';
 import { SharepointService } from '../etl/sharepoint.service';
+import {
+  buildMeetingConfirmationEmail,
+  buildMeetingConfirmationText,
+  buildBookingReminderEmail,
+  buildBookingReminderText,
+  buildInternalBookingNotificationEmail,
+  buildInternalBookingNotificationText,
+} from '../mailer/email-templates.service';
 import {
   bookingSlotDefinitions,
   createBookingSchema,
@@ -492,29 +501,20 @@ export class BookingsService {
 
   private async sendBookingConfirmationEmail(booking: Booking) {
     const formattedStart = this.formatBookingDate(booking.slotStartAt);
-    const joinLink = booking.meetingJoinUrl
-      ? `<p><a href="${booking.meetingJoinUrl}">Join the meeting</a></p>`
-      : '';
 
     await this.mailerService.sendMail({
       recipients: [booking.email],
-      subject: 'Thanks for booking a call with Skarion',
-      html: `
-        <p>Hi ${booking.fullName},</p>
-        <p>Thanks for booking a call with Skarion. Your meeting is confirmed for <strong>${formattedStart}</strong>.</p>
-        <p>Your calendar file is attached so you can add the meeting to your calendar in one click.</p>
-        ${joinLink}
-        <p>If you need to share anything before the call, just reply to this email.</p>
-        <p>Best,<br />Skarion</p>
-      `,
-      text: `Hi ${booking.fullName},
-
-Thanks for booking a call with Skarion. Your meeting is confirmed for ${formattedStart}.
-
-Your calendar file is attached so you can add the meeting to your calendar.
-
-${booking.meetingJoinUrl ? `Join the meeting: ${booking.meetingJoinUrl}\n\n` : ''}Best,
-Skarion`,
+      subject: 'Your Skarion Session is Confirmed',
+      html: buildMeetingConfirmationEmail({
+        fullName: booking.fullName,
+        formattedStart,
+        joinLink: booking.meetingJoinUrl,
+      }),
+      text: buildMeetingConfirmationText({
+        fullName: booking.fullName,
+        formattedStart,
+        joinLink: booking.meetingJoinUrl,
+      }),
       attachments: [
         {
           filename: 'skarion-booking.ics',
@@ -540,14 +540,7 @@ Skarion`,
       return;
     }
 
-    const resumeHtml = booking.resumeUrl
-      ? `<p><strong>Resume:</strong> <a href="${booking.resumeUrl}">View on SharePoint</a></p>`
-      : '';
-
-    const resumeText = booking.resumeUrl
-      ? `Resume: ${booking.resumeUrl}\n`
-      : '';
-
+    const formattedStart = this.formatBookingDate(booking.slotStartAt);
     const attachments: Array<{
       filename: string;
       contentType: string;
@@ -565,24 +558,24 @@ Skarion`,
     await this.mailerService.sendMail({
       recipients: this.internalNotificationRecipients,
       subject: `New booking: ${booking.fullName} on ${booking.slotDate}`,
-      html: `
-        <p>A new Skarion booking has been created.</p>
-        <p><strong>Name:</strong> ${booking.fullName}</p>
-        <p><strong>Email:</strong> ${booking.email}</p>
-        <p><strong>Phone:</strong> ${booking.phone}</p>
-        <p><strong>Meeting time:</strong> ${this.formatBookingDate(booking.slotStartAt)}</p>
-        ${booking.address ? `<p><strong>Address:</strong> ${booking.address}</p>` : ''}
-        ${booking.note ? `<p><strong>Note:</strong> ${booking.note}</p>` : ''}
-        ${resumeHtml}
-        ${booking.meetingJoinUrl ? `<p><a href="${booking.meetingJoinUrl}">Join the meeting</a></p>` : ''}
-      `,
-      text: `A new Skarion booking has been created.
-
-Name: ${booking.fullName}
-Email: ${booking.email}
-Phone: ${booking.phone}
-Meeting time: ${this.formatBookingDate(booking.slotStartAt)}
-${booking.address ? `Address: ${booking.address}\n` : ''}${booking.note ? `Note: ${booking.note}\n` : ''}${resumeText}${booking.meetingJoinUrl ? `Join the meeting: ${booking.meetingJoinUrl}\n` : ''}`,
+      html: buildInternalBookingNotificationEmail({
+        fullName: booking.fullName,
+        email: booking.email,
+        phone: booking.phone,
+        formattedStart,
+        address: booking.address,
+        note: booking.note,
+        joinLink: booking.meetingJoinUrl,
+      }),
+      text: buildInternalBookingNotificationText({
+        fullName: booking.fullName,
+        email: booking.email,
+        phone: booking.phone,
+        formattedStart,
+        address: booking.address,
+        note: booking.note,
+        joinLink: booking.meetingJoinUrl,
+      }),
       attachments,
     });
   }
@@ -595,25 +588,21 @@ ${booking.address ? `Address: ${booking.address}\n` : ''}${booking.note ? `Note:
       ].filter(Boolean)),
     );
 
+    const formattedStart = this.formatBookingDate(booking.slotStartAt);
+
     await this.mailerService.sendMail({
       recipients,
       subject: 'Reminder: your Skarion call starts in 1 hour',
-      html: `
-        <p>This is a reminder that the Skarion booking call with ${booking.fullName} starts in 1 hour.</p>
-        <p><strong>${this.formatBookingDate(booking.slotStartAt)}</strong></p>
-        ${
-          booking.meetingJoinUrl
-            ? `<p><a href="${booking.meetingJoinUrl}">Join the meeting</a></p>`
-            : ''
-        }
-        <p>Regards,<br />Skarion</p>
-      `,
-      text: `Reminder: the Skarion booking call with ${booking.fullName} starts in 1 hour.
-
-${this.formatBookingDate(booking.slotStartAt)}
-
-${booking.meetingJoinUrl ? `Join the meeting: ${booking.meetingJoinUrl}\n\n` : ''}Regards,
-Skarion`,
+      html: buildBookingReminderEmail({
+        fullName: booking.fullName,
+        formattedStart,
+        joinLink: booking.meetingJoinUrl,
+      }),
+      text: buildBookingReminderText({
+        fullName: booking.fullName,
+        formattedStart,
+        joinLink: booking.meetingJoinUrl,
+      }),
     });
   }
 
