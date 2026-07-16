@@ -66,6 +66,13 @@ export class BookingsService {
   private readonly minimumLeadHours = Number(
     process.env.BOOKING_MIN_LEAD_HOURS || 2,
   );
+  // Optional hard block: no slots are offered before this UTC timestamp.
+  // Set BOOKING_UNAVAILABLE_UNTIL to an ISO 8601 string (e.g. 2026-07-19T18:00:00.000Z)
+  // to hide every slot whose start time is on or before that moment.
+  private readonly bookingUnavailableUntil: Date | null = process.env
+    .BOOKING_UNAVAILABLE_UNTIL
+    ? new Date(process.env.BOOKING_UNAVAILABLE_UNTIL)
+    : null;
   private readonly senderEmail = process.env.DEFAULT_FROM_EMAIL || '';
   private readonly organizerEmail = process.env.BOOKING_ORGANIZER_EMAIL || '';
   private readonly internalNotificationRecipients = this.parseEmailList(
@@ -321,7 +328,11 @@ export class BookingsService {
         const endAt = addMinutes(startAt, this.durationMinutes);
         const slotKey = startAt.toISOString();
 
-        if (startAt <= minimumStartTime || bookedSlots.has(slotKey)) {
+        if (
+          startAt <= minimumStartTime ||
+          (this.bookingUnavailableUntil !== null && startAt <= this.bookingUnavailableUntil) ||
+          bookedSlots.has(slotKey)
+        ) {
           continue;
         }
 
