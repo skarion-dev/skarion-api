@@ -318,7 +318,10 @@ export class BookingsService {
       const date = formatInTimeZone(dayDate, this.timezone, 'yyyy-MM-dd');
       const weekday = Number(formatInTimeZone(dayDate, this.timezone, 'i'));
 
-
+      // Skip Bangladeshi weekend: Friday (5) and Saturday (6) in ISO weekday numbering
+      if (weekday === 5 || weekday === 6) {
+        continue;
+      }
 
       for (const slotDefinition of bookingSlotDefinitions) {
         const startAt = fromZonedTime(
