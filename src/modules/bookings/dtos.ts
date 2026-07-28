@@ -135,3 +135,63 @@ export class BookingResponse {
   @ApiProperty()
   createdAt: Date;
 }
+
+// ── All canonical slot values (source of truth) ──────────────────────────────
+export const ALL_SLOT_VALUES = bookingSlotValues;
+
+// ── Booking settings DTOs ─────────────────────────────────────────────────────
+
+export const updateBookingSettingsSchema = z.object({
+  enabledSlots: z
+    .array(z.enum(bookingSlotValues))
+    .min(1, 'At least one slot must be enabled')
+    .optional(),
+  enabledWeekdays: z
+    .array(z.number().int().min(1).max(7))
+    .min(1, 'At least one weekday must be enabled')
+    .optional(),
+  durationMinutes: z.number().int().min(15).max(240).optional(),
+  availabilityDays: z.number().int().min(1).max(365).optional(),
+  minimumLeadHours: z.number().int().min(0).max(168).optional(),
+  bookingUnavailableUntil: z
+    .preprocess(
+      (v) => (v === null || v === '' ? null : v),
+      z.string().datetime({ offset: true }).nullable().optional(),
+    )
+    .optional(),
+});
+
+export type UpdateBookingSettingsData = z.infer<
+  typeof updateBookingSettingsSchema
+>;
+
+export class UpdateBookingSettingsDto extends createZodDto(
+  updateBookingSettingsSchema,
+) {}
+
+export class BookingSettingsResponse {
+  @ApiProperty({ type: [String] })
+  enabledSlots: string[];
+
+  @ApiProperty({ type: [Number] })
+  enabledWeekdays: number[];
+
+  @ApiProperty()
+  durationMinutes: number;
+
+  @ApiProperty()
+  availabilityDays: number;
+
+  @ApiProperty()
+  minimumLeadHours: number;
+
+  @ApiProperty({ nullable: true, required: false })
+  bookingUnavailableUntil: string | null;
+
+  @ApiProperty()
+  updatedAt: Date;
+
+  /** All possible slot definitions the UI can toggle */
+  @ApiProperty({ type: 'object', additionalProperties: true })
+  allSlotDefinitions: typeof bookingSlotDefinitions;
+}

@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   ConflictException,
   Injectable,
   InternalServerErrorException,
@@ -12,6 +11,7 @@ import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 import { randomUUID } from 'crypto';
 import { Between, IsNull, Repository } from 'typeorm';
 import { Booking } from 'src/entities/booking.entity';
+import { BookingSettings } from 'src/entities/booking-settings.entity';
 import { MailerService } from '../mailer/mailer.service';
 import { MicrosoftService } from '../microsoft/microsoft.service';
 import { SharepointService } from '../etl/sharepoint.service';
@@ -25,9 +25,11 @@ import {
 } from '../mailer/email-templates.service';
 import {
   bookingSlotDefinitions,
+  BookingSettingsResponse,
   createBookingSchema,
   type BookingAvailabilityResponse,
   type BookingResponse,
+  type UpdateBookingSettingsData,
 } from './dtos';
 import { z } from 'zod';
 
@@ -53,23 +55,22 @@ type MicrosoftCalendarEventResponse = {
 export class BookingsService {
   private readonly logger = new Logger(BookingsService.name);
   private readonly graphBaseUrl = 'https://graph.microsoft.com/v1.0';
-  private readonly timezone =
+
+  // ── Env-var defaults (used when no DB settings row exists) ───────────────
+  private readonly defaultTimezone =
     process.env.BOOKING_TIMEZONE || 'America/New_York';
-  private readonly timezoneLabel =
+  private readonly defaultTimezoneLabel =
     process.env.BOOKING_TIMEZONE_LABEL || 'Eastern Time';
-  private readonly durationMinutes = Number(
+  private readonly defaultDurationMinutes = Number(
     process.env.BOOKING_DURATION_MINUTES || 30,
   );
-  private readonly availabilityDays = Number(
+  private readonly defaultAvailabilityDays = Number(
     process.env.BOOKING_AVAILABILITY_DAYS || 30,
   );
-  private readonly minimumLeadHours = Number(
+  private readonly defaultMinimumLeadHours = Number(
     process.env.BOOKING_MIN_LEAD_HOURS || 2,
   );
-  // Optional hard block: no slots are offered before this UTC timestamp.
-  // Set BOOKING_UNAVAILABLE_UNTIL to an ISO 8601 string (e.g. 2026-07-19T18:00:00.000Z)
-  // to hide every slot whose start time is on or before that moment.
-  private readonly bookingUnavailableUntil: Date | null = process.env
+  private readonly defaultBookingUnavailableUntil: Date | null = process.env
     .BOOKING_UNAVAILABLE_UNTIL
     ? new Date(process.env.BOOKING_UNAVAILABLE_UNTIL)
     : null;
@@ -86,15 +87,70 @@ export class BookingsService {
   constructor(
     @InjectRepository(Booking)
     private readonly bookingsRepository: Repository<Booking>,
+    @InjectRepository(BookingSettings)
+    private readonly bookingSettingsRepository: Repository<BookingSettings>,
     private readonly mailerService: MailerService,
     private readonly microsoftService: MicrosoftService,
     private readonly sharepointService: SharepointService,
   ) {}
 
+  // ── Public: get current settings (for admin dashboard) ───────────────────
+  async getBookingSettings(): Promise<BookingSettingsResponse> {
+    const settings = await this.loadSettings();
+    return {
+      enabledSlots: settings.enabledSlots,
+      enabledWeekdays: settings.enabledWeekdays.map(Number),
+      durationMinutes: settings.durationMinutes,
+      availabilityDays: settings.availabilityDays,
+      minimumLeadHours: settings.minimumLeadHours,
+      bookingUnavailableUntil: settings.bookingUnavailableUntil
+        ? settings.bookingUnavailableUntil.toISOString()
+        : null,
+      updatedAt: settings.updatedAt,
+      allSlotDefinitions: bookingSlotDefinitions,
+    };
+  }
+
+  // ── Public: update settings (admin only) ─────────────────────────────────
+  async updateBookingSettings(
+    data: UpdateBookingSettingsData,
+  ): Promise<BookingSettingsResponse> {
+    let settings = await this.bookingSettingsRepository.findOneBy({ id: 1 });
+
+    if (!settings) {
+      settings = this.bookingSettingsRepository.create({
+        id: 1,
+        enabledSlots: [
+          '10:00', '11:00', '12:00', '13:00', '14:00', '21:00', '22:00', '23:00',
+        ],
+        enabledWeekdays: [1, 2, 3, 4, 7],
+        durationMinutes: this.defaultDurationMinutes,
+        availabilityDays: this.defaultAvailabilityDays,
+        minimumLeadHours: this.defaultMinimumLeadHours,
+        bookingUnavailableUntil: this.defaultBookingUnavailableUntil,
+      });
+    }
+
+    if (data.enabledSlots !== undefined) settings.enabledSlots = data.enabledSlots;
+    if (data.enabledWeekdays !== undefined) settings.enabledWeekdays = data.enabledWeekdays;
+    if (data.durationMinutes !== undefined) settings.durationMinutes = data.durationMinutes;
+    if (data.availabilityDays !== undefined) settings.availabilityDays = data.availabilityDays;
+    if (data.minimumLeadHours !== undefined) settings.minimumLeadHours = data.minimumLeadHours;
+    if ('bookingUnavailableUntil' in data) {
+      settings.bookingUnavailableUntil = data.bookingUnavailableUntil
+        ? new Date(data.bookingUnavailableUntil)
+        : null;
+    }
+
+    await this.bookingSettingsRepository.save(settings);
+    return this.getBookingSettings();
+  }
+
   async getAvailability(requestedTimezone?: string): Promise<BookingAvailabilityResponse> {
-    const tz = requestedTimezone || this.timezone;
-    const tzLabel = requestedTimezone || this.timezoneLabel;
-    const slots = await this.buildAvailability();
+    const settings = await this.loadSettings();
+    const tz = requestedTimezone || this.defaultTimezone;
+    const tzLabel = requestedTimezone || this.defaultTimezoneLabel;
+    const slots = await this.buildAvailability(settings);
 
     const daysMap = new Map<
       string,
@@ -131,7 +187,7 @@ export class BookingsService {
     return {
       timezone: tz,
       timezoneLabel: tzLabel,
-      durationMinutes: this.durationMinutes,
+      durationMinutes: settings.durationMinutes,
       days: Array.from(daysMap.values()),
     };
   }
@@ -140,8 +196,9 @@ export class BookingsService {
     data: CreateBookingData,
     resumeFile?: Express.Multer.File,
   ): Promise<BookingResponse> {
-    const tz = data.timezone || this.timezone;
-    const availability = await this.buildAvailability();
+    const settings = await this.loadSettings();
+    const tz = data.timezone || this.defaultTimezone;
+    const availability = await this.buildAvailability(settings);
     const matchedSlot = availability.find((slot) => {
       const targetDate = formatInTimeZone(slot.startAt, tz, 'yyyy-MM-dd');
       return targetDate === data.slotDate && slot.value === data.slotValue;
@@ -292,10 +349,36 @@ export class BookingsService {
     }
   }
 
-  private async buildAvailability(): Promise<SlotResult[]> {
+  // ── Load settings from DB, falling back to env-var defaults ─────────────
+  private async loadSettings(): Promise<BookingSettings> {
+    const row = await this.bookingSettingsRepository.findOneBy({ id: 1 });
+    if (row) {
+      // simple-array columns come back as strings; coerce weekdays to numbers
+      row.enabledWeekdays = (row.enabledWeekdays as unknown as string[])
+        .map(Number)
+        .filter((n) => !isNaN(n));
+      return row;
+    }
+
+    // Return a transient (unsaved) entity with env-var defaults
+    const defaults = new BookingSettings();
+    defaults.id = 1;
+    defaults.enabledSlots = [
+      '10:00', '11:00', '12:00', '13:00', '14:00', '21:00', '22:00', '23:00',
+    ];
+    defaults.enabledWeekdays = [1, 2, 3, 4, 7];
+    defaults.durationMinutes = this.defaultDurationMinutes;
+    defaults.availabilityDays = this.defaultAvailabilityDays;
+    defaults.minimumLeadHours = this.defaultMinimumLeadHours;
+    defaults.bookingUnavailableUntil = this.defaultBookingUnavailableUntil;
+    defaults.updatedAt = new Date(0);
+    return defaults;
+  }
+
+  private async buildAvailability(settings: BookingSettings): Promise<SlotResult[]> {
     const now = new Date();
-    const minimumStartTime = addMinutes(now, this.minimumLeadHours * 60);
-    const windowEnd = addDays(now, this.availabilityDays + 1);
+    const minimumStartTime = addMinutes(now, settings.minimumLeadHours * 60);
+    const windowEnd = addDays(now, settings.availabilityDays + 1);
 
     const existingBookings = await this.bookingsRepository.find({
       where: {
@@ -311,29 +394,39 @@ export class BookingsService {
       existingBookings.map((booking) => booking.slotStartAt.toISOString()),
     );
 
+    // Build a Set for O(1) lookups
+    const enabledSlotSet = new Set(settings.enabledSlots);
+    const enabledWeekdaySet = new Set(settings.enabledWeekdays.map(Number));
+
     const results: SlotResult[] = [];
 
-    for (let dayOffset = 0; dayOffset < this.availabilityDays; dayOffset += 1) {
+    for (let dayOffset = 0; dayOffset < settings.availabilityDays; dayOffset += 1) {
       const dayDate = addDays(now, dayOffset);
-      const date = formatInTimeZone(dayDate, this.timezone, 'yyyy-MM-dd');
-      const weekday = Number(formatInTimeZone(dayDate, this.timezone, 'i'));
+      const date = formatInTimeZone(dayDate, this.defaultTimezone, 'yyyy-MM-dd');
+      const weekday = Number(formatInTimeZone(dayDate, this.defaultTimezone, 'i'));
 
-      // Skip Bangladeshi weekend: Friday (5) and Saturday (6) in ISO weekday numbering
-      if (weekday === 5 || weekday === 6) {
+      // Only include days that are enabled in settings
+      if (!enabledWeekdaySet.has(weekday)) {
         continue;
       }
 
       for (const slotDefinition of bookingSlotDefinitions) {
+        // Skip slots that have been disabled by admin
+        if (!enabledSlotSet.has(slotDefinition.value)) {
+          continue;
+        }
+
         const startAt = fromZonedTime(
           `${date}T${slotDefinition.value}:00`,
-          this.timezone,
+          this.defaultTimezone,
         );
-        const endAt = addMinutes(startAt, this.durationMinutes);
+        const endAt = addMinutes(startAt, settings.durationMinutes);
         const slotKey = startAt.toISOString();
 
         if (
           startAt <= minimumStartTime ||
-          (this.bookingUnavailableUntil !== null && startAt <= this.bookingUnavailableUntil) ||
+          (settings.bookingUnavailableUntil !== null &&
+            startAt <= settings.bookingUnavailableUntil) ||
           bookedSlots.has(slotKey)
         ) {
           continue;
@@ -479,7 +572,7 @@ export class BookingsService {
           headers: {
             Authorization: `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
-            Prefer: `outlook.timezone="${this.timezone}"`,
+            Prefer: `outlook.timezone="${this.defaultTimezone}"`,
           },
         },
       );
@@ -713,11 +806,11 @@ export class BookingsService {
   private formatBookingDate(value: Date) {
     const formattedDate = formatInTimeZone(
       value,
-      this.timezone,
+      this.defaultTimezone,
       "EEEE, MMMM d, yyyy 'at' h:mm a",
     );
 
-    return `${formattedDate} (${this.timezoneLabel})`;
+    return `${formattedDate} (${this.defaultTimezoneLabel})`;
   }
 
   private toBookingResponse(booking: Booking): BookingResponse {
