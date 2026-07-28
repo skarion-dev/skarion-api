@@ -15,6 +15,7 @@ import { CrawlerStatus } from 'src/entities/crawler-status.entity';
 import { ChatRoom } from 'src/entities/chat-room.entity';
 import { ChatMessage } from 'src/entities/chat-message.entity';
 import { Booking } from 'src/entities/booking.entity';
+import { BookingSettings } from 'src/entities/booking-settings.entity';
 
 const needsSsl =
   appConfig.env.NODE_ENV === 'production' ||
@@ -45,6 +46,7 @@ export const ormConfig = (): TypeOrmModuleOptions => ({
     ChatRoom,
     ChatMessage,
     Booking,
+    BookingSettings,
   ],
 
   synchronize: appConfig.env.NODE_ENV !== 'production',
