@@ -12,6 +12,7 @@ import { Candidate } from '../entities/candidate.entity';
 import { JobApplication } from '../entities/job-application.entity';
 import { CrawlerStatus } from '../entities/crawler-status.entity';
 import { Booking } from '../entities/booking.entity';
+import { BookingSettings } from '../entities/booking-settings.entity';
 
 export default new DataSource({
   type: 'postgres',
@@ -33,6 +34,7 @@ export default new DataSource({
     JobApplication,
     CrawlerStatus,
     Booking,
+    BookingSettings,
   ],
   migrations: ['src/database/migrations/*.ts'],
   subscribers: [],
