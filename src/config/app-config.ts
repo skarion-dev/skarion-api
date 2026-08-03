@@ -33,7 +33,6 @@ const envSchema = z.object({
   BOOKING_INTERNAL_NOTIFY_EMAIL: z.string().email().optional(),
   BOOKING_INTERNAL_NOTIFY_EMAILS: z.string().optional(),
   BOOKING_TIMEZONE: z.string().optional().default('America/New_York'),
-  BOOKING_TIMEZONE_LABEL: z.string().optional().default('Eastern Time'),
   BOOKING_DURATION_MINUTES: z.coerce.number().optional().default(30),
   BOOKING_AVAILABILITY_DAYS: z.coerce.number().optional().default(30),
   BOOKING_MIN_LEAD_HOURS: z.coerce.number().optional().default(2),

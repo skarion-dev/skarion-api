@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   InternalServerErrorException,
@@ -27,6 +28,7 @@ import {
   bookingSlotDefinitions,
   BookingSettingsResponse,
   createBookingSchema,
+  isValidBookingTimezone,
   type BookingAvailabilityResponse,
   type BookingResponse,
   type UpdateBookingSettingsData,
@@ -51,6 +53,21 @@ type MicrosoftCalendarEventResponse = {
   };
 };
 
+type MicrosoftOnlineMeetingResponse = {
+  joinWebUrl?: string;
+};
+
+const MICROSOFT_TIMEZONE_BY_IANA: Readonly<Record<string, string>> = {
+  'America/New_York': 'Eastern Standard Time',
+  'America/Chicago': 'Central Standard Time',
+  'America/Denver': 'Mountain Standard Time',
+  'America/Phoenix': 'US Mountain Standard Time',
+  'America/Los_Angeles': 'Pacific Standard Time',
+  'America/Anchorage': 'Alaskan Standard Time',
+  'Pacific/Honolulu': 'Hawaiian Standard Time',
+  'America/Puerto_Rico': 'SA Western Standard Time',
+};
+
 @Injectable()
 export class BookingsService {
   private readonly logger = new Logger(BookingsService.name);
@@ -59,8 +76,6 @@ export class BookingsService {
   // ── Env-var defaults (used when no DB settings row exists) ───────────────
   private readonly defaultTimezone =
     process.env.BOOKING_TIMEZONE || 'America/New_York';
-  private readonly defaultTimezoneLabel =
-    process.env.BOOKING_TIMEZONE_LABEL || 'Eastern Time';
   private readonly defaultDurationMinutes = Number(
     process.env.BOOKING_DURATION_MINUTES || 30,
   );
@@ -121,7 +136,14 @@ export class BookingsService {
       settings = this.bookingSettingsRepository.create({
         id: 1,
         enabledSlots: [
-          '10:00', '11:00', '12:00', '13:00', '14:00', '21:00', '22:00', '23:00',
+          '10:00',
+          '11:00',
+          '12:00',
+          '13:00',
+          '14:00',
+          '21:00',
+          '22:00',
+          '23:00',
         ],
         enabledWeekdays: [1, 2, 3, 4, 7],
         durationMinutes: this.defaultDurationMinutes,
@@ -131,11 +153,16 @@ export class BookingsService {
       });
     }
 
-    if (data.enabledSlots !== undefined) settings.enabledSlots = data.enabledSlots;
-    if (data.enabledWeekdays !== undefined) settings.enabledWeekdays = data.enabledWeekdays;
-    if (data.durationMinutes !== undefined) settings.durationMinutes = data.durationMinutes;
-    if (data.availabilityDays !== undefined) settings.availabilityDays = data.availabilityDays;
-    if (data.minimumLeadHours !== undefined) settings.minimumLeadHours = data.minimumLeadHours;
+    if (data.enabledSlots !== undefined)
+      settings.enabledSlots = data.enabledSlots;
+    if (data.enabledWeekdays !== undefined)
+      settings.enabledWeekdays = data.enabledWeekdays;
+    if (data.durationMinutes !== undefined)
+      settings.durationMinutes = data.durationMinutes;
+    if (data.availabilityDays !== undefined)
+      settings.availabilityDays = data.availabilityDays;
+    if (data.minimumLeadHours !== undefined)
+      settings.minimumLeadHours = data.minimumLeadHours;
     if ('bookingUnavailableUntil' in data) {
       settings.bookingUnavailableUntil = data.bookingUnavailableUntil
         ? new Date(data.bookingUnavailableUntil)
@@ -146,10 +173,13 @@ export class BookingsService {
     return this.getBookingSettings();
   }
 
-  async getAvailability(requestedTimezone?: string): Promise<BookingAvailabilityResponse> {
+  async getAvailability(
+    requestedTimezone?: string,
+  ): Promise<BookingAvailabilityResponse> {
     const settings = await this.loadSettings();
     const tz = requestedTimezone || this.defaultTimezone;
-    const tzLabel = requestedTimezone || this.defaultTimezoneLabel;
+    this.assertValidTimezone(tz);
+    const tzLabel = this.getTimezoneLabel(tz);
     const slots = await this.buildAvailability(settings);
 
     const daysMap = new Map<
@@ -197,11 +227,21 @@ export class BookingsService {
     resumeFile?: Express.Multer.File,
   ): Promise<BookingResponse> {
     const settings = await this.loadSettings();
-    const tz = data.timezone || this.defaultTimezone;
+    const tz = data.timezone;
+    this.assertValidTimezone(tz);
     const availability = await this.buildAvailability(settings);
+    const requestedStartAt = data.slotStartAt
+      ? new Date(data.slotStartAt).getTime()
+      : null;
     const matchedSlot = availability.find((slot) => {
       const targetDate = formatInTimeZone(slot.startAt, tz, 'yyyy-MM-dd');
-      return targetDate === data.slotDate && slot.value === data.slotValue;
+      const matchesIdentity =
+        targetDate === data.slotDate && slot.value === data.slotValue;
+      const matchesInstant =
+        requestedStartAt === null ||
+        slot.startAt.getTime() === requestedStartAt;
+
+      return matchesIdentity && matchesInstant;
     });
 
     if (!matchedSlot) {
@@ -231,7 +271,10 @@ export class BookingsService {
       resumeContentType = resumeFile.mimetype;
 
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const safeName = fullName.replace(/[^a-zA-Z0-9 ]/g, '').trim().replace(/\s+/g, '_');
+      const safeName = fullName
+        .replace(/[^a-zA-Z0-9 ]/g, '')
+        .trim()
+        .replace(/\s+/g, '_');
       const ext = resumeOriginalName.substring(
         resumeOriginalName.lastIndexOf('.'),
       );
@@ -260,9 +303,9 @@ export class BookingsService {
       phone,
       address: trimmedAddress,
       note: trimmedNote,
-      slotDate: matchedSlot.date,
+      slotDate: formatInTimeZone(matchedSlot.startAt, tz, 'yyyy-MM-dd'),
       slotValue: matchedSlot.value,
-      slotLabel: matchedSlot.label,
+      slotLabel: formatInTimeZone(matchedSlot.startAt, tz, 'h:mm a'),
       slotStartAt: matchedSlot.startAt,
       slotEndAt: matchedSlot.endAt,
       timezone: tz,
@@ -292,6 +335,7 @@ export class BookingsService {
         address: trimmedAddress,
         note: trimmedNote,
         slot: matchedSlot,
+        timezone: tz,
       });
 
       booking.microsoftEventId = meeting.eventId;
@@ -364,7 +408,14 @@ export class BookingsService {
     const defaults = new BookingSettings();
     defaults.id = 1;
     defaults.enabledSlots = [
-      '10:00', '11:00', '12:00', '13:00', '14:00', '21:00', '22:00', '23:00',
+      '10:00',
+      '11:00',
+      '12:00',
+      '13:00',
+      '14:00',
+      '21:00',
+      '22:00',
+      '23:00',
     ];
     defaults.enabledWeekdays = [1, 2, 3, 4, 7];
     defaults.durationMinutes = this.defaultDurationMinutes;
@@ -375,7 +426,9 @@ export class BookingsService {
     return defaults;
   }
 
-  private async buildAvailability(settings: BookingSettings): Promise<SlotResult[]> {
+  private async buildAvailability(
+    settings: BookingSettings,
+  ): Promise<SlotResult[]> {
     const now = new Date();
     const minimumStartTime = addMinutes(now, settings.minimumLeadHours * 60);
     const windowEnd = addDays(now, settings.availabilityDays + 1);
@@ -400,10 +453,20 @@ export class BookingsService {
 
     const results: SlotResult[] = [];
 
-    for (let dayOffset = 0; dayOffset < settings.availabilityDays; dayOffset += 1) {
+    for (
+      let dayOffset = 0;
+      dayOffset < settings.availabilityDays;
+      dayOffset += 1
+    ) {
       const dayDate = addDays(now, dayOffset);
-      const date = formatInTimeZone(dayDate, this.defaultTimezone, 'yyyy-MM-dd');
-      const weekday = Number(formatInTimeZone(dayDate, this.defaultTimezone, 'i'));
+      const date = formatInTimeZone(
+        dayDate,
+        this.defaultTimezone,
+        'yyyy-MM-dd',
+      );
+      const weekday = Number(
+        formatInTimeZone(dayDate, this.defaultTimezone, 'i'),
+      );
 
       // Only include days that are enabled in settings
       if (!enabledWeekdaySet.has(weekday)) {
@@ -452,6 +515,7 @@ export class BookingsService {
     address,
     note,
     slot,
+    timezone,
   }: {
     fullName: string;
     email: string;
@@ -459,6 +523,7 @@ export class BookingsService {
     address?: string;
     note?: string;
     slot: SlotResult;
+    timezone: string;
   }) {
     if (!this.organizerEmail) {
       throw new InternalServerErrorException(
@@ -472,7 +537,7 @@ export class BookingsService {
     let onlineMeetingJoinUrl: string | undefined;
 
     try {
-      const meetingResponse = await axios.post(
+      const meetingResponse = await axios.post<MicrosoftOnlineMeetingResponse>(
         `${this.graphBaseUrl}/users/${this.organizerEmail}/onlineMeetings`,
         {
           subject: `Skarion Consultation Call - ${fullName}`,
@@ -511,6 +576,8 @@ export class BookingsService {
     }
 
     // ── Step 2: Create the calendar event ────────────────────────────────
+    const eventStart = this.toMicrosoftEventDateTime(slot.startAt, timezone);
+    const eventEnd = this.toMicrosoftEventDateTime(slot.endAt, timezone);
     const eventPayload: Record<string, unknown> = {
       subject: `Skarion Consultation Call - ${fullName}`,
       body: {
@@ -522,16 +589,11 @@ export class BookingsService {
           address,
           note,
           slot,
+          timezone,
         }),
       },
-      start: {
-        dateTime: slot.startAt.toISOString(),
-        timeZone: 'UTC',
-      },
-      end: {
-        dateTime: slot.endAt.toISOString(),
-        timeZone: 'UTC',
-      },
+      start: eventStart,
+      end: eventEnd,
       allowNewTimeProposals: false,
       location: {
         displayName: 'Microsoft Teams',
@@ -572,7 +634,6 @@ export class BookingsService {
           headers: {
             Authorization: `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
-            Prefer: `outlook.timezone="${this.defaultTimezone}"`,
           },
         },
       );
@@ -607,7 +668,10 @@ export class BookingsService {
   }
 
   private async sendBookingConfirmationEmail(booking: Booking) {
-    const formattedStart = this.formatBookingDate(booking.slotStartAt);
+    const formattedStart = this.formatBookingDate(
+      booking.slotStartAt,
+      booking.timezone,
+    );
 
     await this.mailerService.sendMail({
       recipients: [booking.email],
@@ -647,7 +711,7 @@ export class BookingsService {
       return;
     }
 
-    const formattedStart = this.formatBookingDate(booking.slotStartAt);
+    const formattedStart = this.formatBookingDateForInternalTeam(booking);
     const attachments: Array<{
       filename: string;
       contentType: string;
@@ -689,13 +753,15 @@ export class BookingsService {
 
   private async sendReminderEmail(booking: Booking) {
     const recipients = Array.from(
-      new Set([
-        booking.email,
-        ...this.internalNotificationRecipients,
-      ].filter(Boolean)),
+      new Set(
+        [booking.email, ...this.internalNotificationRecipients].filter(Boolean),
+      ),
     );
 
-    const formattedStart = this.formatBookingDate(booking.slotStartAt);
+    const formattedStart = this.formatBookingDate(
+      booking.slotStartAt,
+      booking.timezone,
+    );
 
     await this.mailerService.sendMail({
       recipients,
@@ -720,6 +786,7 @@ export class BookingsService {
     address,
     note,
     slot,
+    timezone,
   }: {
     fullName: string;
     email: string;
@@ -727,12 +794,13 @@ export class BookingsService {
     address?: string;
     note?: string;
     slot: SlotResult;
+    timezone: string;
   }) {
     const details = [
       `<p><strong>Booked by:</strong> ${fullName}</p>`,
       `<p><strong>Email:</strong> ${email}</p>`,
       `<p><strong>Phone:</strong> ${phone}</p>`,
-      `<p><strong>Meeting time:</strong> ${this.formatBookingDate(slot.startAt)}</p>`,
+      `<p><strong>Meeting time:</strong> ${this.formatBookingDate(slot.startAt, timezone)}</p>`,
     ];
 
     if (address) {
@@ -750,8 +818,10 @@ export class BookingsService {
     const organizerEmail = this.organizerEmail || this.senderEmail;
     const descriptionLines = [
       'Thanks for booking a call with Skarion.',
-      `Meeting time: ${this.formatBookingDate(booking.slotStartAt)}`,
-      booking.meetingJoinUrl ? `Join the meeting: ${booking.meetingJoinUrl}` : '',
+      `Meeting time: ${this.formatBookingDate(booking.slotStartAt, booking.timezone)}`,
+      booking.meetingJoinUrl
+        ? `Join the meeting: ${booking.meetingJoinUrl}`
+        : '',
     ].filter(Boolean);
 
     return [
@@ -803,14 +873,70 @@ export class BookingsService {
     );
   }
 
-  private formatBookingDate(value: Date) {
+  private assertValidTimezone(timezone: string) {
+    if (!isValidBookingTimezone(timezone)) {
+      throw new BadRequestException(
+        `Invalid timezone "${timezone}". Use an IANA timezone such as America/Chicago.`,
+      );
+    }
+  }
+
+  private toMicrosoftEventDateTime(value: Date, timezone: string) {
+    const microsoftTimezone = MICROSOFT_TIMEZONE_BY_IANA[timezone];
+
+    if (!microsoftTimezone) {
+      return {
+        dateTime: value.toISOString(),
+        timeZone: 'UTC',
+      };
+    }
+
+    return {
+      dateTime: formatInTimeZone(value, timezone, "yyyy-MM-dd'T'HH:mm:ss"),
+      timeZone: microsoftTimezone,
+    };
+  }
+
+  private getTimezoneLabel(timezone: string, value = new Date()) {
+    this.assertValidTimezone(timezone);
+
+    const label = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      timeZoneName: 'longGeneric',
+    })
+      .formatToParts(value)
+      .find((part) => part.type === 'timeZoneName')?.value;
+
+    return label || timezone;
+  }
+
+  private formatBookingDate(value: Date, timezone: string) {
+    this.assertValidTimezone(timezone);
     const formattedDate = formatInTimeZone(
       value,
-      this.defaultTimezone,
-      "EEEE, MMMM d, yyyy 'at' h:mm a",
+      timezone,
+      "EEEE, MMMM d, yyyy 'at' h:mm a zzz",
     );
 
-    return `${formattedDate} (${this.defaultTimezoneLabel})`;
+    return `${formattedDate} (${this.getTimezoneLabel(timezone, value)})`;
+  }
+
+  private formatBookingDateForInternalTeam(booking: Booking) {
+    const candidateTime = this.formatBookingDate(
+      booking.slotStartAt,
+      booking.timezone,
+    );
+
+    if (booking.timezone === this.defaultTimezone) {
+      return candidateTime;
+    }
+
+    const organizerTime = this.formatBookingDate(
+      booking.slotStartAt,
+      this.defaultTimezone,
+    );
+
+    return `${candidateTime}; organizer time: ${organizerTime}`;
   }
 
   private toBookingResponse(booking: Booking): BookingResponse {

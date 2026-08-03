@@ -12,6 +12,30 @@ const optionalTrimmedString = (maxLength: number) =>
     return trimmed.length ? trimmed : undefined;
   }, z.string().max(maxLength).optional());
 
+export const isValidBookingTimezone = (timezone: string) => {
+  // Reject ambiguous abbreviations/fixed labels such as EST or CST. Booking
+  // requests must carry a region-based IANA identifier that preserves DST.
+  if (
+    timezone !== 'UTC' &&
+    !/^[A-Za-z_+-]+(?:\/[A-Za-z0-9_+-]+)+$/.test(timezone)
+  ) {
+    return false;
+  }
+
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format();
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+export const bookingTimezoneSchema = z
+  .string()
+  .trim()
+  .min(1, 'Timezone is required')
+  .refine(isValidBookingTimezone, 'Enter a valid IANA timezone');
+
 const bookingSlotValues = [
   '10:00',
   '11:00',
@@ -43,12 +67,16 @@ export const createBookingSchema = z.object({
   phone: z
     .string()
     .trim()
-    .regex(/^(\+?1\s?)?(\([0-9]{3}\)|[0-9]{3})[\s\-]?[0-9]{3}[\s\-]?[0-9]{4}$/, 'Enter a valid 10-digit US phone number'),
-  timezone: z.string().optional(),
+    .regex(
+      /^(\+?1\s?)?(\([0-9]{3}\)|[0-9]{3})[\s-]?[0-9]{3}[\s-]?[0-9]{4}$/,
+      'Enter a valid 10-digit US phone number',
+    ),
+  timezone: bookingTimezoneSchema,
   address: optionalTrimmedString(255),
   note: optionalTrimmedString(1000),
   slotDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   slotValue: z.enum(bookingSlotValues),
+  slotStartAt: z.string().datetime({ offset: true }).optional(),
 });
 
 export class CreateBookingDto extends createZodDto(createBookingSchema) {}
