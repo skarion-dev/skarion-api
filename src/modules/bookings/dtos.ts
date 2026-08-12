@@ -159,6 +159,17 @@ export const updateBookingSettingsSchema = z.object({
       z.string().datetime({ offset: true }).nullable().optional(),
     )
     .optional(),
+  /**
+   * Per-date slot overrides. Keys are specific dates in "YYYY-MM-DD" format.
+   * Pass null to clear all overrides.
+   */
+  dateOverrides: z
+    .record(
+      z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Key must be a date in YYYY-MM-DD format'),
+      z.array(z.enum(bookingSlotValues)),
+    )
+    .nullable()
+    .optional(),
 });
 
 export type UpdateBookingSettingsData = z.infer<
@@ -194,4 +205,11 @@ export class BookingSettingsResponse {
   /** All possible slot definitions the UI can toggle */
   @ApiProperty({ type: 'object', additionalProperties: true })
   allSlotDefinitions: typeof bookingSlotDefinitions;
+
+  /**
+   * Per-date slot overrides. Keys are "YYYY-MM-DD" date strings.
+   * null means every date uses the global enabledSlots.
+   */
+  @ApiProperty({ type: 'object', additionalProperties: true, nullable: true })
+  dateOverrides: Record<string, string[]> | null;
 }

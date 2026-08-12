@@ -54,6 +54,15 @@ export class BookingSettings {
   @Column({ type: 'timestamptz', nullable: true, default: null })
   bookingUnavailableUntil: Date | null;
 
+  /**
+   * Per-date slot overrides. Keys are specific dates in "YYYY-MM-DD" format.
+   * When a key is present its value replaces the global enabledSlots for that date.
+   * When null or empty, all dates use the global enabledSlots.
+   * e.g. { "2026-08-20": ["14:00", "21:00"], "2026-08-25": ["10:00"] }
+   */
+  @Column({ type: 'jsonb', nullable: true, default: null })
+  dateOverrides: Record<string, string[]> | null;
+
   @UpdateDateColumn()
   updatedAt: Date;
 }
