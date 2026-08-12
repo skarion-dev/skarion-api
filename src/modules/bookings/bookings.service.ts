@@ -170,14 +170,47 @@ export class BookingsService {
         ? new Date(data.bookingUnavailableUntil)
         : null;
     }
+    let normalizedDateOverrides: Record<string, string[]> | null | undefined;
     if ('dateOverrides' in data) {
       // null clears all overrides; {} is also treated as no overrides
       const raw = data.dateOverrides;
-      settings.dateOverrides =
-        raw && Object.keys(raw).length > 0 ? raw : null;
+      normalizedDateOverrides =
+        raw && Object.keys(raw).length > 0
+          ? Object.fromEntries(
+              Object.entries(raw).map(([date, slots]) => [
+                date,
+                [...new Set(slots)],
+              ]),
+            )
+          : null;
+      settings.dateOverrides = normalizedDateOverrides;
     }
 
     await this.bookingSettingsRepository.save(settings);
+
+    // Write JSONB explicitly and verify it. This avoids returning a successful
+    // response if entity change detection ever omits an in-place JSON value.
+    if (normalizedDateOverrides !== undefined) {
+      await this.bookingSettingsRepository.update(
+        { id: settings.id },
+        { dateOverrides: normalizedDateOverrides },
+      );
+
+      const persisted = await this.bookingSettingsRepository.findOneBy({
+        id: settings.id,
+      });
+      if (
+        !persisted ||
+        JSON.stringify(persisted.dateOverrides ?? null) !==
+          JSON.stringify(normalizedDateOverrides)
+      ) {
+        this.logger.error('Booking date overrides failed persistence check');
+        throw new InternalServerErrorException(
+          'Booking date overrides could not be saved',
+        );
+      }
+    }
+
     return this.getBookingSettings();
   }
 
