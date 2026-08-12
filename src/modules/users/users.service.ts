@@ -127,4 +127,29 @@ export class UsersService {
 
     return { message: 'User assigned customer support role successfully', user };
   }
+
+  async assignBookingManagerRole(userId: string) {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['roles'],
+    });
+
+    if (!user) throw new NotFoundException('User not found');
+    if (user.roles.some((role) => role.name === 'booking_manager')) {
+      throw new BadRequestException('User is already a booking manager');
+    }
+
+    const role = await this.roleRepository.findOne({
+      where: { name: 'booking_manager' },
+    });
+    if (!role) {
+      throw new NotFoundException(
+        'Booking manager role not found. Please run migrations.',
+      );
+    }
+
+    user.roles.push(role);
+    await this.userRepository.save(user);
+    return { message: 'User assigned booking manager role successfully', user };
+  }
 }

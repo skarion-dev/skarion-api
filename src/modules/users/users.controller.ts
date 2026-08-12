@@ -43,4 +43,11 @@ export class UsersController {
   async assignCustomerSupport(@Param('id') id: string) {
     return this.usersService.assignCustomerSupportRole(id);
   }
+
+  @Post(':id/assign-booking-manager')
+  @RequirePermissions('MANAGE_USERS')
+  @ApiOperation({ summary: 'Allow a user to manage public booking settings' })
+  async assignBookingManager(@Param('id') id: string) {
+    return this.usersService.assignBookingManagerRole(id);
+  }
 }
