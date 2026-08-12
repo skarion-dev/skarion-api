@@ -483,13 +483,17 @@ export class BookingsService {
         formatInTimeZone(dayDate, this.defaultTimezone, 'i'),
       );
 
-      // Only include days that are enabled in settings
-      if (!enabledWeekdaySet.has(weekday)) {
+      const hasDateOverride = dateOverrideSets.has(date);
+
+      // A date override takes precedence over the recurring weekday schedule.
+      // This lets admins open an otherwise disabled weekday, while an empty
+      // override intentionally hides that exact date.
+      if (!hasDateOverride && !enabledWeekdaySet.has(weekday)) {
         continue;
       }
 
       // Use per-date override slots if one exists, otherwise fall back to global
-      const activeSlotSet = dateOverrideSets.has(date)
+      const activeSlotSet = hasDateOverride
         ? dateOverrideSets.get(date)!
         : enabledSlotSet;
 
