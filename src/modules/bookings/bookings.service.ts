@@ -123,6 +123,7 @@ export class BookingsService {
         : null,
       updatedAt: settings.updatedAt,
       allSlotDefinitions: bookingSlotDefinitions,
+      dateOverrides: settings.dateOverrides ?? null,
     };
   }
 
@@ -150,6 +151,7 @@ export class BookingsService {
         availabilityDays: this.defaultAvailabilityDays,
         minimumLeadHours: this.defaultMinimumLeadHours,
         bookingUnavailableUntil: this.defaultBookingUnavailableUntil,
+        dateOverrides: null,
       });
     }
 
@@ -167,6 +169,12 @@ export class BookingsService {
       settings.bookingUnavailableUntil = data.bookingUnavailableUntil
         ? new Date(data.bookingUnavailableUntil)
         : null;
+    }
+    if ('dateOverrides' in data) {
+      // null clears all overrides; {} is also treated as no overrides
+      const raw = data.dateOverrides;
+      settings.dateOverrides =
+        raw && Object.keys(raw).length > 0 ? raw : null;
     }
 
     await this.bookingSettingsRepository.save(settings);
@@ -451,6 +459,13 @@ export class BookingsService {
     const enabledSlotSet = new Set(settings.enabledSlots);
     const enabledWeekdaySet = new Set(settings.enabledWeekdays.map(Number));
 
+    // Pre-build per-date override sets for O(1) lookups
+    const dateOverrides = settings.dateOverrides ?? {};
+    const dateOverrideSets = new Map<string, Set<string>>();
+    for (const [dateKey, slots] of Object.entries(dateOverrides)) {
+      dateOverrideSets.set(dateKey, new Set(slots));
+    }
+
     const results: SlotResult[] = [];
 
     for (
@@ -473,9 +488,14 @@ export class BookingsService {
         continue;
       }
 
+      // Use per-date override slots if one exists, otherwise fall back to global
+      const activeSlotSet = dateOverrideSets.has(date)
+        ? dateOverrideSets.get(date)!
+        : enabledSlotSet;
+
       for (const slotDefinition of bookingSlotDefinitions) {
-        // Skip slots that have been disabled by admin
-        if (!enabledSlotSet.has(slotDefinition.value)) {
+        // Skip slots that are not active for this day
+        if (!activeSlotSet.has(slotDefinition.value)) {
           continue;
         }
 
