@@ -481,8 +481,9 @@ export class BookingsService {
     const now = new Date();
     const minimumStartTime = addMinutes(now, settings.minimumLeadHours * 60);
 
-    const todayBase = startOfDay(toZonedTime(now, baseTimezone));
-    const windowEnd = addDays(todayBase, settings.availabilityDays + 1);
+    const todayStr = formatInTimeZone(now, baseTimezone, 'yyyy-MM-dd');
+    const todayBaseUtc = new Date(`${todayStr}T00:00:00Z`);
+    const windowEnd = addDays(todayBaseUtc, settings.availabilityDays + 1);
 
     const existingBookings = await this.bookingsRepository.find({
       where: {
@@ -516,9 +517,11 @@ export class BookingsService {
       dayOffset < settings.availabilityDays;
       dayOffset += 1
     ) {
-      const dayDate = addDays(todayBase, dayOffset);
-      const date = formatInTimeZone(dayDate, baseTimezone, 'yyyy-MM-dd');
-      const weekday = Number(formatInTimeZone(dayDate, baseTimezone, 'i'));
+      const currentDayUtc = addDays(todayBaseUtc, dayOffset);
+      const date = currentDayUtc.toISOString().split('T')[0];
+      
+      let weekday = currentDayUtc.getUTCDay();
+      if (weekday === 0) weekday = 7; // ISO weekday
 
       const hasDateOverride = dateOverrideSets.has(date);
 
@@ -532,16 +535,14 @@ export class BookingsService {
         ? dateOverrideSets.get(date)!
         : enabledSlotSet;
 
-      const localStartOfDay = fromZonedTime(dayDate, baseTimezone);
-
       for (const slotDefinition of bookingSlotDefinitions) {
         // Skip slots that are not active for this day
         if (!activeSlotSet.has(slotDefinition.value)) {
           continue;
         }
 
-        const [hour, minute] = slotDefinition.value.split(':').map(Number);
-        const startAt = addMinutes(addHours(localStartOfDay, hour), minute);
+        const localTimeString = `${date}T${slotDefinition.value}:00`;
+        const startAt = fromZonedTime(localTimeString, baseTimezone);
         const endAt = addMinutes(startAt, settings.durationMinutes);
         const slotKey = startAt.toISOString();
 
