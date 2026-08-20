@@ -7,8 +7,8 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import axios from 'axios';
-import { addDays, addMinutes } from 'date-fns';
-import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
+import { addDays, addMinutes, startOfDay, addHours } from 'date-fns';
+import { formatInTimeZone, fromZonedTime, toZonedTime } from 'date-fns-tz';
 import { randomUUID } from 'crypto';
 import { Between, IsNull, Repository } from 'typeorm';
 import { Booking } from 'src/entities/booking.entity';
@@ -121,6 +121,7 @@ export class BookingsService {
       bookingUnavailableUntil: settings.bookingUnavailableUntil
         ? settings.bookingUnavailableUntil.toISOString()
         : null,
+      timezone: settings.timezone,
       updatedAt: settings.updatedAt,
       allSlotDefinitions: bookingSlotDefinitions,
       dateOverrides: settings.dateOverrides ?? null,
@@ -151,6 +152,7 @@ export class BookingsService {
         availabilityDays: this.defaultAvailabilityDays,
         minimumLeadHours: this.defaultMinimumLeadHours,
         bookingUnavailableUntil: this.defaultBookingUnavailableUntil,
+        timezone: this.defaultTimezone,
         dateOverrides: null,
       });
     }
@@ -169,6 +171,9 @@ export class BookingsService {
       settings.bookingUnavailableUntil = data.bookingUnavailableUntil
         ? new Date(data.bookingUnavailableUntil)
         : null;
+    }
+    if (data.timezone !== undefined) {
+      settings.timezone = data.timezone;
     }
     let normalizedDateOverrides: Record<string, string[]> | null | undefined;
     if ('dateOverrides' in data) {
@@ -218,10 +223,11 @@ export class BookingsService {
     requestedTimezone?: string,
   ): Promise<BookingAvailabilityResponse> {
     const settings = await this.loadSettings();
-    const tz = requestedTimezone || this.defaultTimezone;
+    const baseTimezone = settings.timezone || this.defaultTimezone;
+    const tz = requestedTimezone || baseTimezone;
     this.assertValidTimezone(tz);
     const tzLabel = this.getTimezoneLabel(tz);
-    const slots = await this.buildAvailability(settings);
+    const slots = await this.buildAvailability(settings, baseTimezone);
 
     const daysMap = new Map<
       string,
@@ -270,7 +276,7 @@ export class BookingsService {
     const settings = await this.loadSettings();
     const tz = data.timezone;
     this.assertValidTimezone(tz);
-    const availability = await this.buildAvailability(settings);
+    const availability = await this.buildAvailability(settings, settings.timezone || this.defaultTimezone);
     const requestedStartAt = data.slotStartAt
       ? new Date(data.slotStartAt).getTime()
       : null;
@@ -463,16 +469,20 @@ export class BookingsService {
     defaults.availabilityDays = this.defaultAvailabilityDays;
     defaults.minimumLeadHours = this.defaultMinimumLeadHours;
     defaults.bookingUnavailableUntil = this.defaultBookingUnavailableUntil;
+    defaults.timezone = this.defaultTimezone;
     defaults.updatedAt = new Date(0);
     return defaults;
   }
 
   private async buildAvailability(
     settings: BookingSettings,
+    baseTimezone: string,
   ): Promise<SlotResult[]> {
     const now = new Date();
     const minimumStartTime = addMinutes(now, settings.minimumLeadHours * 60);
-    const windowEnd = addDays(now, settings.availabilityDays + 1);
+
+    const todayBase = startOfDay(toZonedTime(now, baseTimezone));
+    const windowEnd = addDays(todayBase, settings.availabilityDays + 1);
 
     const existingBookings = await this.bookingsRepository.find({
       where: {
@@ -506,21 +516,13 @@ export class BookingsService {
       dayOffset < settings.availabilityDays;
       dayOffset += 1
     ) {
-      const dayDate = addDays(now, dayOffset);
-      const date = formatInTimeZone(
-        dayDate,
-        this.defaultTimezone,
-        'yyyy-MM-dd',
-      );
-      const weekday = Number(
-        formatInTimeZone(dayDate, this.defaultTimezone, 'i'),
-      );
+      const dayDate = addDays(todayBase, dayOffset);
+      const date = formatInTimeZone(dayDate, baseTimezone, 'yyyy-MM-dd');
+      const weekday = Number(formatInTimeZone(dayDate, baseTimezone, 'i'));
 
       const hasDateOverride = dateOverrideSets.has(date);
 
       // A date override takes precedence over the recurring weekday schedule.
-      // This lets admins open an otherwise disabled weekday, while an empty
-      // override intentionally hides that exact date.
       if (!hasDateOverride && !enabledWeekdaySet.has(weekday)) {
         continue;
       }
@@ -530,16 +532,16 @@ export class BookingsService {
         ? dateOverrideSets.get(date)!
         : enabledSlotSet;
 
+      const localStartOfDay = fromZonedTime(dayDate, baseTimezone);
+
       for (const slotDefinition of bookingSlotDefinitions) {
         // Skip slots that are not active for this day
         if (!activeSlotSet.has(slotDefinition.value)) {
           continue;
         }
 
-        const startAt = fromZonedTime(
-          `${date}T${slotDefinition.value}:00`,
-          this.defaultTimezone,
-        );
+        const [hour, minute] = slotDefinition.value.split(':').map(Number);
+        const startAt = addMinutes(addHours(localStartOfDay, hour), minute);
         const endAt = addMinutes(startAt, settings.durationMinutes);
         const slotKey = startAt.toISOString();
 

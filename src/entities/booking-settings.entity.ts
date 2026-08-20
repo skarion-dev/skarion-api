@@ -55,6 +55,13 @@ export class BookingSettings {
   bookingUnavailableUntil: Date | null;
 
   /**
+   * The timezone the admin is configuring their slots in.
+   * This is used as the base timezone for slot generation.
+   */
+  @Column({ type: 'varchar', default: 'America/New_York' })
+  timezone: string;
+
+  /**
    * Per-date slot overrides. Keys are specific dates in "YYYY-MM-DD" format.
    * When a key is present its value replaces the global enabledSlots for that date.
    * When null or empty, all dates use the global enabledSlots.

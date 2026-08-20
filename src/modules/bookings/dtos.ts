@@ -198,6 +198,7 @@ export const updateBookingSettingsSchema = z.object({
     )
     .nullable()
     .optional(),
+  timezone: bookingTimezoneSchema.optional(),
 });
 
 export type UpdateBookingSettingsData = z.infer<
@@ -226,6 +227,9 @@ export class BookingSettingsResponse {
 
   @ApiProperty({ nullable: true, required: false })
   bookingUnavailableUntil: string | null;
+
+  @ApiProperty()
+  timezone: string;
 
   @ApiProperty()
   updatedAt: Date;
