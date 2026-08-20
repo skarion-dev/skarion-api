@@ -5,7 +5,7 @@ export class AddTimezoneToBookingSettings1787000000000 implements MigrationInter
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
-      `ALTER TABLE "booking_settings" ADD "timezone" character varying NOT NULL DEFAULT 'America/New_York'`,
+      `ALTER TABLE "booking_settings" ADD COLUMN IF NOT EXISTS "timezone" character varying NOT NULL DEFAULT 'America/New_York'`,
     );
   }
 
