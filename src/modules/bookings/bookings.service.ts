@@ -448,7 +448,7 @@ export class BookingsService {
 
   async getAdminBookings() {
     const bookings = await this.bookingsRepository.find({
-      order: { slotStartAt: 'ASC' },
+      order: { slotStartAt: 'DESC' },
     });
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
