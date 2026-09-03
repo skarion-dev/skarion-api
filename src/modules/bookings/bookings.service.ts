@@ -4,11 +4,12 @@ import {
   Injectable,
   InternalServerErrorException,
   Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import axios from 'axios';
-import { addDays, addMinutes, startOfDay, addHours } from 'date-fns';
-import { formatInTimeZone, fromZonedTime, toZonedTime } from 'date-fns-tz';
+import { addDays, addMinutes } from 'date-fns';
+import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 import { randomUUID } from 'crypto';
 import { Between, IsNull, Repository } from 'typeorm';
 import { Booking } from 'src/entities/booking.entity';
@@ -27,6 +28,7 @@ import {
 import {
   bookingSlotDefinitions,
   BookingSettingsResponse,
+  rescheduleBookingSchema,
   createBookingSchema,
   isValidBookingTimezone,
   type BookingAvailabilityResponse,
@@ -36,6 +38,7 @@ import {
 import { z } from 'zod';
 
 type CreateBookingData = z.infer<typeof createBookingSchema>;
+type RescheduleBookingData = z.infer<typeof rescheduleBookingSchema>;
 
 type SlotResult = {
   date: string;
@@ -276,7 +279,10 @@ export class BookingsService {
     const settings = await this.loadSettings();
     const tz = data.timezone;
     this.assertValidTimezone(tz);
-    const availability = await this.buildAvailability(settings, settings.timezone || this.defaultTimezone);
+    const availability = await this.buildAvailability(
+      settings,
+      settings.timezone || this.defaultTimezone,
+    );
     const requestedStartAt = data.slotStartAt
       ? new Date(data.slotStartAt).getTime()
       : null;
@@ -440,6 +446,97 @@ export class BookingsService {
     }
   }
 
+  async getAdminBookings() {
+    const bookings = await this.bookingsRepository.find({
+      order: { slotStartAt: 'ASC' },
+    });
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const scheduled = bookings.filter(
+      (booking) => booking.status === 'scheduled',
+    );
+    return {
+      bookings: bookings.map((booking) => this.toBookingResponse(booking)),
+      stats: {
+        total: bookings.length,
+        scheduled: scheduled.length,
+        cancelled: bookings.filter((booking) => booking.status === 'cancelled')
+          .length,
+        upcoming: scheduled.filter((booking) => booking.slotStartAt >= now)
+          .length,
+        thisMonth: bookings.filter((booking) => booking.createdAt >= monthStart)
+          .length,
+      },
+    };
+  }
+
+  async cancelBooking(id: string): Promise<BookingResponse> {
+    const booking = await this.bookingsRepository.findOneBy({ id });
+    if (!booking) throw new NotFoundException('Booking not found.');
+    if (booking.status === 'cancelled') return this.toBookingResponse(booking);
+
+    if (booking.microsoftEventId) {
+      await this.updateOrDeleteCalendarEvent(
+        booking.microsoftEventId,
+        'delete',
+      );
+    }
+    booking.status = 'cancelled';
+    booking.reminderScheduled = false;
+    await this.bookingsRepository.save(booking);
+    return this.toBookingResponse(booking);
+  }
+
+  async rescheduleBooking(
+    id: string,
+    data: RescheduleBookingData,
+  ): Promise<BookingResponse> {
+    const booking = await this.bookingsRepository.findOneBy({ id });
+    if (!booking) throw new NotFoundException('Booking not found.');
+    if (booking.status !== 'scheduled') {
+      throw new BadRequestException(
+        'Only scheduled bookings can be rescheduled.',
+      );
+    }
+
+    const settings = await this.loadSettings();
+    const timezone = data.timezone || booking.timezone;
+    this.assertValidTimezone(timezone);
+    const availability = await this.buildAvailability(
+      settings,
+      settings.timezone || this.defaultTimezone,
+    );
+    const target = availability.find(
+      (slot) =>
+        formatInTimeZone(slot.startAt, timezone, 'yyyy-MM-dd') ===
+          data.slotDate && slot.value === data.slotValue,
+    );
+    if (!target)
+      throw new ConflictException('That time is no longer available.');
+
+    if (booking.microsoftEventId) {
+      await this.updateOrDeleteCalendarEvent(
+        booking.microsoftEventId,
+        'update',
+        {
+          start: this.toMicrosoftEventDateTime(target.startAt, timezone),
+          end: this.toMicrosoftEventDateTime(target.endAt, timezone),
+        },
+      );
+    }
+    booking.slotStartAt = target.startAt;
+    booking.slotEndAt = target.endAt;
+    booking.slotDate = formatInTimeZone(target.startAt, timezone, 'yyyy-MM-dd');
+    booking.slotValue = target.value;
+    booking.slotLabel = formatInTimeZone(target.startAt, timezone, 'h:mm a');
+    booking.timezone = timezone;
+    booking.reminderScheduled =
+      target.startAt.getTime() - Date.now() > 60 * 60 * 1000;
+    booking.reminderSentAt = null;
+    await this.bookingsRepository.save(booking);
+    return this.toBookingResponse(booking);
+  }
+
   // ── Load settings from DB, falling back to env-var defaults ─────────────
   private async loadSettings(): Promise<BookingSettings> {
     const row = await this.bookingSettingsRepository.findOneBy({ id: 1 });
@@ -519,7 +616,7 @@ export class BookingsService {
     ) {
       const currentDayUtc = addDays(todayBaseUtc, dayOffset);
       const date = currentDayUtc.toISOString().split('T')[0];
-      
+
       let weekday = currentDayUtc.getUTCDay();
       if (weekday === 0) weekday = 7; // ISO weekday
 
@@ -723,6 +820,40 @@ export class BookingsService {
 
       throw new InternalServerErrorException(
         'Unable to create the calendar event for this booking.',
+      );
+    }
+  }
+
+  private async updateOrDeleteCalendarEvent(
+    eventId: string,
+    action: 'update' | 'delete',
+    payload?: Record<string, unknown>,
+  ) {
+    if (!this.organizerEmail)
+      throw new InternalServerErrorException(
+        'Booking organizer is not configured.',
+      );
+    const accessToken = await this.microsoftService.getAccessToken();
+    const url = `${this.graphBaseUrl}/users/${this.organizerEmail}/calendar/events/${encodeURIComponent(eventId)}`;
+    try {
+      if (action === 'delete')
+        await axios.delete(url, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+      else
+        await axios.patch(url, payload, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        });
+    } catch (error) {
+      this.logger.error(
+        `Failed to ${action} Microsoft calendar event`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new InternalServerErrorException(
+        `Unable to ${action === 'delete' ? 'cancel' : 'reschedule'} the calendar event.`,
       );
     }
   }
@@ -1016,6 +1147,7 @@ export class BookingsService {
       meetingJoinUrl: booking.meetingJoinUrl,
       reminderScheduled: booking.reminderScheduled,
       createdAt: booking.createdAt,
+      status: booking.status,
     };
   }
 }

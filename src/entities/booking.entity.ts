@@ -56,5 +56,5 @@ export class Booking extends BaseEntity {
   reminderScheduled: boolean;
 
   @Column({ type: 'timestamptz', name: 'reminder_sent_at', nullable: true })
-  reminderSentAt?: Date;
+  reminderSentAt?: Date | null;
 }

@@ -162,6 +162,32 @@ export class BookingResponse {
 
   @ApiProperty()
   createdAt: Date;
+
+  @ApiProperty()
+  status: string;
+}
+
+export const rescheduleBookingSchema = z.object({
+  slotDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  slotValue: z.enum(bookingSlotValues),
+  timezone: bookingTimezoneSchema.optional(),
+});
+
+export class RescheduleBookingDto extends createZodDto(
+  rescheduleBookingSchema,
+) {}
+
+export class BookingStatsResponse {
+  @ApiProperty() total: number;
+  @ApiProperty() scheduled: number;
+  @ApiProperty() cancelled: number;
+  @ApiProperty() upcoming: number;
+  @ApiProperty() thisMonth: number;
+}
+
+export class BookingAdminResponse {
+  @ApiProperty({ type: [BookingResponse] }) bookings: BookingResponse[];
+  @ApiProperty({ type: BookingStatsResponse }) stats: BookingStatsResponse;
 }
 
 // ── All canonical slot values (source of truth) ──────────────────────────────
@@ -193,7 +219,12 @@ export const updateBookingSettingsSchema = z.object({
    */
   dateOverrides: z
     .record(
-      z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Key must be a date in YYYY-MM-DD format'),
+      z
+        .string()
+        .regex(
+          /^\d{4}-\d{2}-\d{2}$/,
+          'Key must be a date in YYYY-MM-DD format',
+        ),
       z.array(z.enum(bookingSlotValues)),
     )
     .nullable()

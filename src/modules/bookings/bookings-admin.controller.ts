@@ -3,6 +3,8 @@ import {
   Controller,
   Get,
   Patch,
+  Param,
+  Delete,
   UseGuards,
   UsePipes,
 } from '@nestjs/common';
@@ -19,6 +21,10 @@ import { RequirePermissions } from '../../common/decorator/require-permissions.d
 import { BookingsService } from './bookings.service';
 import {
   BookingSettingsResponse,
+  BookingAdminResponse,
+  BookingResponse,
+  RescheduleBookingDto,
+  rescheduleBookingSchema,
   UpdateBookingSettingsDto,
   updateBookingSettingsSchema,
 } from './dtos';
@@ -30,6 +36,28 @@ import {
 @RequirePermissions('MANAGE_BOOKING_SETTINGS')
 export class BookingsAdminController {
   constructor(private readonly bookingsService: BookingsService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'List consultation bookings and booking stats' })
+  @ApiResponse({ status: 200, type: BookingAdminResponse })
+  getBookings() {
+    return this.bookingsService.getAdminBookings();
+  }
+
+  @Patch(':id/reschedule')
+  @UsePipes(new ZodValidationPipe(rescheduleBookingSchema))
+  @ApiOperation({ summary: 'Reschedule a consultation booking' })
+  @ApiResponse({ status: 200, type: BookingResponse })
+  reschedule(@Param('id') id: string, @Body() dto: RescheduleBookingDto) {
+    return this.bookingsService.rescheduleBooking(id, dto);
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Cancel a consultation booking' })
+  @ApiResponse({ status: 200, type: BookingResponse })
+  cancel(@Param('id') id: string) {
+    return this.bookingsService.cancelBooking(id);
+  }
 
   @Get('settings')
   @ApiOperation({ summary: 'Get current booking settings' })
