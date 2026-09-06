@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -25,7 +26,6 @@ import {
   BookingResponse,
   RescheduleBookingDto,
   rescheduleBookingSchema,
-  UpdateMeetingSummaryDto,
   updateMeetingSummarySchema,
   UpdateBookingSettingsDto,
   updateBookingSettingsSchema,
@@ -55,11 +55,21 @@ export class BookingsAdminController {
   }
 
   @Patch(':id/summary')
-  @UsePipes(new ZodValidationPipe(updateMeetingSummarySchema))
   @ApiOperation({ summary: 'Add or edit a consultation meeting summary' })
   @ApiResponse({ status: 200, type: BookingResponse })
-  updateSummary(@Param('id') id: string, @Body() dto: UpdateMeetingSummaryDto) {
-    return this.bookingsService.updateMeetingSummary(id, dto.meetingSummary);
+  updateSummary(@Param('id') id: string, @Body() body: unknown) {
+    const parsed = updateMeetingSummarySchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException(
+        parsed.error.issues.map(
+          (issue) => `${issue.path.join('.')}: ${issue.message}`,
+        ),
+      );
+    }
+    return this.bookingsService.updateMeetingSummary(
+      id,
+      parsed.data.meetingSummary,
+    );
   }
 
   @Delete(':id/summary')
