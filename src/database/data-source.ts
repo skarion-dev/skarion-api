@@ -14,6 +14,10 @@ import { CrawlerStatus } from '../entities/crawler-status.entity';
 import { Booking } from '../entities/booking.entity';
 import { BookingSettings } from '../entities/booking-settings.entity';
 
+const needsSsl =
+  process.env.NODE_ENV === 'production' ||
+  (process.env.DB_HOST || '').includes('neon.tech');
+
 export default new DataSource({
   type: 'postgres',
   host: process.env.DB_HOST || 'localhost',
@@ -40,12 +44,9 @@ export default new DataSource({
   subscribers: [],
   logging: true,
   synchronize: process.env.NODE_ENV !== 'production',
-  ssl:
-    process.env.NODE_ENV === 'production'
-      ? { rejectUnauthorized: false }
-      : false,
+  ssl: needsSsl ? { rejectUnauthorized: false } : false,
   extra: {
-    ...(process.env.NODE_ENV === 'production' && {
+    ...(needsSsl && {
       ssl: {
         rejectUnauthorized: false,
       },
