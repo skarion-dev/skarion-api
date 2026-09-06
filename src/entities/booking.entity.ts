@@ -19,6 +19,9 @@ export class Booking extends BaseEntity {
   @Column({ type: 'text', nullable: true })
   note?: string;
 
+  @Column({ type: 'text', name: 'meeting_summary', nullable: true })
+  meetingSummary?: string | null;
+
   @Column({ name: 'slot_date' })
   slotDate: string;
 

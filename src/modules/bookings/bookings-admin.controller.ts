@@ -25,6 +25,8 @@ import {
   BookingResponse,
   RescheduleBookingDto,
   rescheduleBookingSchema,
+  UpdateMeetingSummaryDto,
+  updateMeetingSummarySchema,
   UpdateBookingSettingsDto,
   updateBookingSettingsSchema,
 } from './dtos';
@@ -50,6 +52,21 @@ export class BookingsAdminController {
   @ApiResponse({ status: 200, type: BookingResponse })
   reschedule(@Param('id') id: string, @Body() dto: RescheduleBookingDto) {
     return this.bookingsService.rescheduleBooking(id, dto);
+  }
+
+  @Patch(':id/summary')
+  @UsePipes(new ZodValidationPipe(updateMeetingSummarySchema))
+  @ApiOperation({ summary: 'Add or edit a consultation meeting summary' })
+  @ApiResponse({ status: 200, type: BookingResponse })
+  updateSummary(@Param('id') id: string, @Body() dto: UpdateMeetingSummaryDto) {
+    return this.bookingsService.updateMeetingSummary(id, dto.meetingSummary);
+  }
+
+  @Delete(':id/summary')
+  @ApiOperation({ summary: 'Delete a consultation meeting summary' })
+  @ApiResponse({ status: 200, type: BookingResponse })
+  deleteSummary(@Param('id') id: string) {
+    return this.bookingsService.updateMeetingSummary(id, null);
   }
 
   @Delete(':id')

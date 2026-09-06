@@ -487,6 +487,17 @@ export class BookingsService {
     return this.toBookingResponse(booking);
   }
 
+  async updateMeetingSummary(
+    id: string,
+    meetingSummary: string | null,
+  ): Promise<BookingResponse> {
+    const booking = await this.bookingsRepository.findOneBy({ id });
+    if (!booking) throw new NotFoundException('Booking not found.');
+    booking.meetingSummary = meetingSummary;
+    await this.bookingsRepository.save(booking);
+    return this.toBookingResponse(booking);
+  }
+
   async rescheduleBooking(
     id: string,
     data: RescheduleBookingData,
@@ -1138,6 +1149,7 @@ export class BookingsService {
       phone: booking.phone,
       address: booking.address,
       note: booking.note,
+      meetingSummary: booking.meetingSummary ?? null,
       slotDate: booking.slotDate,
       slotValue: booking.slotValue,
       slotLabel: booking.slotLabel,
@@ -1145,6 +1157,7 @@ export class BookingsService {
       slotEndAt: booking.slotEndAt,
       timezone: booking.timezone,
       meetingJoinUrl: booking.meetingJoinUrl,
+      resumeUrl: booking.resumeUrl ?? null,
       reminderScheduled: booking.reminderScheduled,
       createdAt: booking.createdAt,
       status: booking.status,

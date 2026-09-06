@@ -136,6 +136,9 @@ export class BookingResponse {
   @ApiProperty({ required: false, nullable: true })
   note?: string;
 
+  @ApiProperty({ required: false, nullable: true })
+  meetingSummary?: string | null;
+
   @ApiProperty()
   slotDate: string;
 
@@ -157,6 +160,9 @@ export class BookingResponse {
   @ApiProperty({ required: false, nullable: true })
   meetingJoinUrl?: string;
 
+  @ApiProperty({ required: false, nullable: true })
+  resumeUrl?: string | null;
+
   @ApiProperty()
   reminderScheduled: boolean;
 
@@ -175,6 +181,14 @@ export const rescheduleBookingSchema = z.object({
 
 export class RescheduleBookingDto extends createZodDto(
   rescheduleBookingSchema,
+) {}
+
+export const updateMeetingSummarySchema = z.object({
+  meetingSummary: z.string().trim().max(5000),
+});
+
+export class UpdateMeetingSummaryDto extends createZodDto(
+  updateMeetingSummarySchema,
 ) {}
 
 export class BookingStatsResponse {
