@@ -27,6 +27,7 @@ import {
   RescheduleBookingDto,
   rescheduleBookingSchema,
   updateMeetingSummarySchema,
+  updateBookingStatusSchema,
   UpdateBookingSettingsDto,
   updateBookingSettingsSchema,
 } from './dtos';
@@ -77,6 +78,21 @@ export class BookingsAdminController {
   @ApiResponse({ status: 200, type: BookingResponse })
   deleteSummary(@Param('id') id: string) {
     return this.bookingsService.updateMeetingSummary(id, null);
+  }
+
+  @Patch(':id/status')
+  @ApiOperation({ summary: 'Update the consultation booking status' })
+  @ApiResponse({ status: 200, type: BookingResponse })
+  updateStatus(@Param('id') id: string, @Body() body: unknown) {
+    const parsed = updateBookingStatusSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException(
+        parsed.error.issues.map(
+          (issue) => `${issue.path.join('.')}: ${issue.message}`,
+        ),
+      );
+    }
+    return this.bookingsService.updateBookingStatus(id, parsed.data.status);
   }
 
   @Delete(':id')

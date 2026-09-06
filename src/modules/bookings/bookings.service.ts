@@ -29,6 +29,7 @@ import {
   bookingSlotDefinitions,
   BookingSettingsResponse,
   rescheduleBookingSchema,
+  bookingStatuses,
   createBookingSchema,
   isValidBookingTimezone,
   type BookingAvailabilityResponse,
@@ -39,6 +40,7 @@ import { z } from 'zod';
 
 type CreateBookingData = z.infer<typeof createBookingSchema>;
 type RescheduleBookingData = z.infer<typeof rescheduleBookingSchema>;
+type BookingStatus = (typeof bookingStatuses)[number];
 
 type SlotResult = {
   date: string;
@@ -494,6 +496,17 @@ export class BookingsService {
     const booking = await this.bookingsRepository.findOneBy({ id });
     if (!booking) throw new NotFoundException('Booking not found.');
     booking.meetingSummary = meetingSummary;
+    await this.bookingsRepository.save(booking);
+    return this.toBookingResponse(booking);
+  }
+
+  async updateBookingStatus(
+    id: string,
+    status: BookingStatus,
+  ): Promise<BookingResponse> {
+    const booking = await this.bookingsRepository.findOneBy({ id });
+    if (!booking) throw new NotFoundException('Booking not found.');
+    booking.status = status;
     await this.bookingsRepository.save(booking);
     return this.toBookingResponse(booking);
   }
@@ -1160,7 +1173,7 @@ export class BookingsService {
       resumeUrl: booking.resumeUrl ?? null,
       reminderScheduled: booking.reminderScheduled,
       createdAt: booking.createdAt,
-      status: booking.status,
+      status: booking.status as BookingStatus,
     };
   }
 }

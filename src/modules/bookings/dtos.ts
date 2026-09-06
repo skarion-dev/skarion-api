@@ -36,6 +36,15 @@ export const bookingTimezoneSchema = z
   .min(1, 'Timezone is required')
   .refine(isValidBookingTimezone, 'Enter a valid IANA timezone');
 
+export const bookingStatuses = [
+  'ghosted',
+  'followup',
+  'converted',
+  'scheduled',
+  'cancelled',
+] as const;
+export const bookingStatusSchema = z.enum(bookingStatuses);
+
 const bookingSlotValues = [
   '10:00',
   '11:00',
@@ -170,7 +179,7 @@ export class BookingResponse {
   createdAt: Date;
 
   @ApiProperty()
-  status: string;
+  status: (typeof bookingStatuses)[number];
 }
 
 export const rescheduleBookingSchema = z.object({
@@ -189,6 +198,14 @@ export const updateMeetingSummarySchema = z.object({
 
 export class UpdateMeetingSummaryDto extends createZodDto(
   updateMeetingSummarySchema,
+) {}
+
+export const updateBookingStatusSchema = z.object({
+  status: bookingStatusSchema,
+});
+
+export class UpdateBookingStatusDto extends createZodDto(
+  updateBookingStatusSchema,
 ) {}
 
 export class BookingStatsResponse {
